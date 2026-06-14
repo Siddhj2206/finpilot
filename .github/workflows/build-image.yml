@@ -159,15 +159,13 @@ jobs:
           allow-write: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
           cache-bust: ${{ hashFiles('**/Containerfile') }}
 
-      # OPTIONAL: Rechunking (OCI-native, no rpm-ostree)
-      # Rechunking improves OTA delta performance by reorganizing layers.
-      # Uncomment to enable. See: projectbluefin/actions/bootc-build/chunka
-      # - name: Rechunk image
-      #   if: github.event_name != 'pull_request'
-      #   uses: projectbluefin/actions/bootc-build/chunka@v1
-      #   with:
-      #     source-image: localhost/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
-      #     max-layers: 128
+      - name: Rechunk image
+        if: github.event_name != 'pull_request'
+        id: rechunk-image
+        uses: projectbluefin/actions/bootc-build/chunka@6231015b336556d2ff0adc1d1e59514bf19dcb42 # v1
+        with:
+          source-image: localhost/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}
+          max-layers: 128
 
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request' && github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
