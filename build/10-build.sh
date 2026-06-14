@@ -43,9 +43,19 @@ echo "::endgroup::"
 
 echo "::group:: Install Packages"
 
+echo "::group:: DNF cache diagnostics (pre-install)"
+du -sh /var/cache/libdnf5 /var/cache/rpm-ostree 2>/dev/null || true
+find /var/cache/libdnf5 -maxdepth 2 -type f 2>/dev/null | head -20 || true
+echo "::endgroup::"
+
 # Install a minimal package to verify the cache is working
 # This ensures the DNF cache is populated for future builds
 dnf5 install -y tmux
+
+echo "::group:: DNF cache diagnostics (post-install)"
+du -sh /var/cache/libdnf5 /var/cache/rpm-ostree 2>/dev/null || true
+find /var/cache/libdnf5 -maxdepth 2 -type f 2>/dev/null | head -20 || true
+echo "::endgroup::"
 
 # Example using COPR with isolated pattern:
 # copr_install_isolated "ublue-os/staging" package-name

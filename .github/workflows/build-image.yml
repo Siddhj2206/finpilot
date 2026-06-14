@@ -108,6 +108,41 @@ jobs:
           command: |
             sudo -E "$(command -v just)" build "${IMAGE_NAME}" "${DEFAULT_TAG}"
 
+      - name: Diagnostics - inspect DNF cache
+        if: always() && steps.build-image.outcome != 'skipped'
+        shell: bash
+        env:
+          IMAGE_NAME: ${{ env.IMAGE_NAME }}
+          DEFAULT_TAG: ${{ env.DEFAULT_TAG }}
+        run: |
+          set -euo pipefail
+          echo '=== Environment ==='
+          id
+          echo "HOME=${HOME}"
+          echo "TMPDIR=${TMPDIR:-<unset>}"
+          echo "XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-<unset>}"
+          echo
+          echo '=== Podman storage info ==='
+          podman info --debug --format '{{json .Store}}' 2>/dev/null | jq -C '.GraphRoot, .RunRoot, .ImageStore, .ContainerStore' || true
+          echo
+          echo '=== Buildah cache dirs under /var/tmp ==='
+          ls -laR /var/tmp/buildah-cache-* 2>/dev/null || true
+          echo
+          echo '=== Size of buildah cache dirs ==='
+          for d in /var/tmp/buildah-cache-*; do
+            if [[ -d "$d" ]]; then
+              echo "$d: $(du -sh "$d" 2>/dev/null | cut -f1)"
+            fi
+          done
+          echo
+          echo '=== Search for any buildah-cache directories ==='
+          find /var/tmp /tmp /var/cache /root /home/runner -maxdepth 4 -iname '*buildah*' -type d 2>/dev/null || true
+          echo
+          echo '=== DNF cache inside built image ==='
+          sudo podman run --rm --entrypoint='["bash","-c"]' \
+            "localhost/${IMAGE_NAME}:${DEFAULT_TAG}" \
+            'du -sh /var/cache/libdnf5 /var/cache/rpm-ostree 2>/dev/null || true' || true
+
       - name: Get current date
         if: steps.detect-changes.outputs.should_build == 'true' || github.event_name != 'pull_request'
         id: date
