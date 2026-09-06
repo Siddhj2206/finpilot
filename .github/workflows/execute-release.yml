@@ -1,0 +1,60 @@
+---
+name: Execute Release
+
+# A stable release is an OCI promotion, not another build. Only the squash
+# promotion commit is eligible automatically; maintainers may dispatch this
+# workflow for deliberate recovery after inspecting the candidate.
+on:
+  push:
+    branches:
+      - stable
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+
+concurrency:
+  group: execute-release
+  cancel-in-progress: false
+
+jobs:
+  check-trigger:
+    name: Check release trigger
+    runs-on: ubuntu-latest
+    outputs:
+      is-promotion: ${{ steps.check.outputs.is-promotion }}
+    steps:
+      - name: Accept a promotion commit or manual recovery
+        id: check
+        env:
+          COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if [[ "${EVENT_NAME}" == "workflow_dispatch" ]] ||
+             [[ "${COMMIT_MESSAGE}" =~ ^chore:\ promote\ main\ to\ stable ]]; then
+            echo "is-promotion=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "is-promotion=false" >> "${GITHUB_OUTPUT}"
+          fi
+
+  execute:
+    name: Gate and promote candidate digest
+    needs: check-trigger
+    if: needs.check-trigger.outputs.is-promotion == 'true'
+    permissions:
+      actions: read
+      contents: write
+      issues: write
+      packages: write
+      pull-requests: write
+    uses: projectbluefin/actions/.github/workflows/reusable-execute-release.yml@9c699818ddf1043b8f5af8b862f59f783c6c7bda # v1
+    with:
+      registry: ghcr.io/${{ github.repository_owner }}
+      variants: >-
+        [{"image":"${{ github.event.repository.name }}","source_tag":"testing","target_tag":"stable"}]
+      cosign_identity_regexp: >-
+        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+      fast_forward_sha: ${{ github.sha }}
+      run_release_gate: true
+      gate_suites: smoke,common
+    secrets: inherit

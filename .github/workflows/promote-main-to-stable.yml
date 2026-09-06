@@ -1,10 +1,11 @@
 ---
 name: Promote main to stable
 
-# Two-branch model: `main` is the testing branch (publishes :stable-testing),
-# `stable` is the production branch (publishes :stable). On every push to
-# `main` the shared factory workflow opens (or refreshes) a squash promotion
-# PR from `main` to `stable`; merging it publishes :stable.
+# Two-branch model: `main` is the testing branch (publishes :stable-testing and
+# :testing); `stable` is the production branch. The shared factory workflow
+# opens (or refreshes) a squash promotion PR from `main` to `stable` daily, or
+# when a maintainer dispatches it. Merging that PR triggers digest promotion in
+# execute-release.yml; it does not rebuild `:stable`.
 #
 # Reusable logic lives in projectbluefin/actions — this is a thin caller,
 # matching the pattern in projectbluefin/bluefin and projectbluefin/bluefin-lts.
@@ -12,9 +13,9 @@ name: Promote main to stable
 # org-maintained, and shared with the other image repos (see issues #235/#237).
 
 on:
-  push:
-    branches:
-      - main
+  schedule:
+    # Default daily promotion window. Fork owners may change this cadence.
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -41,8 +42,10 @@ jobs:
       registry: ghcr.io/${{ github.repository_owner }}
       source_branch: main
       target_branch: stable
-      # The release gate resolves the :testing tag (published by main builds)
-      # and verifies its cosign signature. Enable the OPTIONAL keyless signing
-      # step in build-image.yml for the gate to report release/ready.
+      # The authoritative exact-digest release gate runs after the squash merge
+      # in execute-release.yml. This promotion PR itself does not duplicate it.
       run_e2e: false
+      # Set true only when stable uses a GitHub merge-queue ruleset. The normal
+      # template path uses GitHub auto-merge and branch-protection approvals.
+      use_merge_queue: false
     secrets: inherit

@@ -2,10 +2,11 @@
 name: Build and Push Image
 
 # Two-branch model:
-#   main   = testing branch, publishes :stable-testing (plus :testing for the
-#            factory release gate)
-#   stable = production branch, publishes :stable
-# promote-main-to-stable.yml opens the main -> stable promotion PR.
+#   main   = testing branch, publishes :stable-testing and :testing
+#   stable = production branch, receives the exact signed/testing digest through
+#            execute-release.yml; it never rebuilds an image.
+# promote-main-to-stable.yml opens the scheduled/manual main -> stable promotion
+# PR. execute-release.yml runs the release gate and promotes the candidate.
 #
 # PR builds are disabled by default to save CI minutes. To enable them, add:
 #   pull_request:
@@ -18,7 +19,6 @@ on:
   push:
     branches:
       - main
-      - stable
     paths-ignore:
       - "**.md"
       - ".github/workflows/*validate*.yml"
@@ -50,6 +50,10 @@ concurrency:
 jobs:
   build:
     name: Build and push image
+    # A manual dispatch may select any ref. Limit it to the repository's default
+    # branch so it cannot bypass the candidate-digest release path by rebuilding
+    # and publishing from stable.
+    if: github.event_name != 'workflow_dispatch' || github.ref_name == github.event.repository.default_branch
     runs-on: ubuntu-24.04
     timeout-minutes: 360
     permissions:
