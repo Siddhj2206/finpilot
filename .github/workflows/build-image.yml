@@ -234,8 +234,9 @@ jobs:
                           "${DEFAULT_TAG}" \
                           "${ALIAS_TAGS}"
 
-      # Publish from both the testing (main) and production (stable) branches;
-      # PR builds only build and validate, they never publish.
+      # Candidate builds from main publish tags; PR builds only build and
+      # validate, and never publish. execute-release.yml promotes the signed,
+      # gated candidate digest to :stable without a stable-branch rebuild.
       - name: Login to GitHub Container Registry
         if: github.event_name != 'pull_request'
         uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4
@@ -257,8 +258,8 @@ jobs:
       # Sign and attest (SLSA Build L2 provenance)
       # Bluefin pattern: keyless OIDC signing via Fulcio.
       # Requires 'id-token: write' permission (granted above).
-      # Non-fatal — signing failures never block image publishing,
-      # but unsigned images fail the promotion release gate.
+      # Signing failures do not block candidate publication, but the release
+      # gate rejects an unsigned candidate and preserves the prior :stable.
 
       - name: Sign and publish
         if: github.event_name != 'pull_request'

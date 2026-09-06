@@ -58,3 +58,27 @@ jobs:
       run_release_gate: true
       gate_suites: smoke,common
     secrets: inherit
+
+  release-notes:
+    name: Create stable GitHub release
+    needs: execute
+    if: always() && needs.execute.result == 'success'
+    permissions:
+      actions: read
+      contents: write
+      id-token: write
+      packages: read
+    # Finpilot's direct build does not upload an SBOM artifact. The supported
+    # reusable inline mode scans the already-promoted stable image instead.
+    uses: projectbluefin/actions/.github/workflows/reusable-release.yml@9c699818ddf1043b8f5af8b862f59f783c6c7bda # v1
+    with:
+      stream_name: stable
+      image: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+      generate_sbom_inline: true
+      checkout_ref: stable
+      project_name: ${{ github.event.repository.name }}
+      badge_label: Stable
+      cert_identity_regexp: >-
+        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+      docs_url: ${{ github.server_url }}/${{ github.repository }}/releases
+    secrets: inherit
