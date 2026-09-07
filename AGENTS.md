@@ -1,5 +1,23 @@
 # Copilot Instructions for finpilot bootc Image Template
 
+## Agent skills
+
+### Issue tracker
+
+Issues and Wayfinder decision tickets live in GitHub Issues for this fork. See
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Temporary Matt Pocock skill triage labels use the default vocabulary. The
+Project Bluefin lifecycle labels remain the repository workflow authority. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. `CONTEXT.md` and `docs/adr/` hold durable
+domain language and decisions. See `docs/agents/domain.md`.
+
 ## Start here
 
 Task-specific instructions are Agent Skills under

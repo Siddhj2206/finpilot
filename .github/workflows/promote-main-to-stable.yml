@@ -33,7 +33,7 @@ concurrency:
 jobs:
   promote:
     name: Promote main to stable
-    uses: projectbluefin/actions/.github/workflows/reusable-promote-squash.yml@9c699818ddf1043b8f5af8b862f59f783c6c7bda # v1
+    uses: projectbluefin/actions/.github/workflows/reusable-promote-squash.yml@1ca03ea1f681c17fd104870aa154f8b5fd34e1d9 # v1
     with:
       variants: >-
         [{"image":"${{ github.event.repository.name }}"}]
@@ -48,4 +48,7 @@ jobs:
       # Set true only when stable uses a GitHub merge-queue ruleset. The normal
       # template path uses GitHub auto-merge and branch-protection approvals.
       use_merge_queue: false
+      # Personal-account forks do not have an <owner>/maintainers team.
+      # Organization forks can enable this and optionally set `reviewer`.
+      request_reviewer: false
     secrets: inherit
