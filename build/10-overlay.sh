@@ -72,16 +72,19 @@ echo "::endgroup::"
 
 echo "::group:: Enable runtime services"
 
-# Enable the units the overlays above provide, so the Brew and Flatpak
-# declarations actually take effect. Packages that provide their own timers
-# (for example uupd) are enabled when their package is installed, in
-# 20-packages-and-services.sh.
+# Units the overlays above provide. Enabling them here is what makes the Brew
+# and Flatpak declarations take effect, and it matches how Bluefin's cleanup
+# phase wires the same shared services.
 systemctl enable brew-setup.service
 systemctl enable brew-update.timer
 systemctl enable brew-upgrade.timer
 systemctl --global enable brew-preinstall.service
 systemctl enable flatpak-preinstall.service
 systemctl enable flatpak-appstream-refresh.service
+
+# First-boot setup framework.
+systemctl enable ublue-system-setup.service
+systemctl --global enable ublue-user-setup.service
 
 # Rootless container management for the reference image.
 systemctl enable podman.socket

@@ -94,9 +94,9 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/build/10-overlay.sh
 
 ### DEFAULT PACKAGES AND SERVICES
-## Installs the image's default RPM and COPR packages. The default package set
-## is still being agreed, so this phase delegates to build/10-build.sh for now;
-## it exists here so the Containerfile's assembly order is final.
+## Installs the image's default RPM and COPR packages and enables the services
+## they provide. Packages live here, not in the overlay phase, so overlay edits
+## cannot invalidate the package layer.
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache/libdnf5 \
     --mount=type=cache,dst=/var/cache/rpm-ostree \
