@@ -155,33 +155,27 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
         BUILD_ARGS+=("--build-arg" "SHA_HEAD_SHORT=$(git rev-parse --short HEAD)")
     fi
 
-    # Image identity ARGs - these define how bootc/ublue ecosystem recognizes the image
+    # Image identity ARGs - these define how bootc/ublue ecosystem recognizes the image.
     # Override via env vars: IMAGE_NAME, IMAGE_VENDOR, UBLUE_IMAGE_TAG
+    image_vendor="${IMAGE_VENDOR:-${REPO_ORG}}"
     BUILD_ARGS+=("--build-arg" "IMAGE_NAME=${target_image}")
-    BUILD_ARGS+=("--build-arg" "IMAGE_VENDOR=${IMAGE_VENDOR:-${REPO_ORG}}")
+    BUILD_ARGS+=("--build-arg" "IMAGE_VENDOR=${image_vendor}")
     BUILD_ARGS+=("--build-arg" "UBLUE_IMAGE_TAG=${UBLUE_IMAGE_TAG:-${tag}}")
+
+    # The Containerfile owns the OCI/ArtifactHub metadata, including URLs
+    # derived from image identity. Pass only explicit metadata overrides.
+    BUILD_ARGS+=("--build-arg" "IMAGE_CREATED=$(date -u +%Y\-%m\-%d\T%H\:%M\:%S\Z)")
+    for metadata_arg in IMAGE_DESC IMAGE_LOGO_URL IMAGE_KEYWORDS IMAGE_REF; do
+        if [[ -n "${!metadata_arg:-}" ]]; then
+            BUILD_ARGS+=("--build-arg" "${metadata_arg}=${!metadata_arg}")
+        fi
+    done
 
     # Add GitHub token as build secret if available (for CI/CD)
     if [[ -n "${GITHUB_TOKEN:-}" ]]; then
         echo "Adding GitHub token as build secret"
         BUILD_ARGS+=("--secret" "id=GITHUB_TOKEN,env=GITHUB_TOKEN")
     fi
-
-    # Labels for ArtifactHub and OCI metadata
-    LABELS=()
-    LABELS+=("--label" "org.opencontainers.image.title=${target_image}")
-    LABELS+=("--label" "org.opencontainers.image.version=${ver}")
-    LABELS+=("--label" "org.opencontainers.image.description=${IMAGE_DESC:-My Customized Universal Blue Image}")
-    LABELS+=("--label" "org.opencontainers.image.source=https://github.com/${GITHUB_REPOSITORY_OWNER:-}/${target_image}/blob/${GITHUB_SHA:-}/Containerfile")
-    LABELS+=("--label" "org.opencontainers.image.url=https://github.com/${GITHUB_REPOSITORY_OWNER:-}/${target_image}")
-    LABELS+=("--label" "org.opencontainers.image.vendor=${IMAGE_VENDOR:-${REPO_ORG}}")
-    LABELS+=("--label" "org.opencontainers.image.created=$(date -u +%Y\-%m\-%d\T%H\:%M\:%S\Z)")
-    LABELS+=("--label" "io.artifacthub.package.readme-url=https://raw.githubusercontent.com/${GITHUB_REPOSITORY_OWNER:-}/${target_image}/refs/heads/main/README.md")
-    LABELS+=("--label" "io.artifacthub.package.logo-url=${IMAGE_LOGO_URL:-https://avatars.githubusercontent.com/u/120078124?s=200&v=4}")
-    LABELS+=("--label" "io.artifacthub.package.keywords=${IMAGE_KEYWORDS:-bootc,ublue,universal-blue}")
-    LABELS+=("--label" "io.artifacthub.package.license=Apache-2.0")
-    LABELS+=("--label" "io.artifacthub.package.deprecated=false")
-    LABELS+=("--label" "containers.bootc=1")
 
     # Registry layer cache - speeds up rebuilds by reusing unchanged layers from GHCR
     # Cache write (REGISTRY_CACHE_WRITE=1) is set by CI for non-PR builds only
@@ -197,7 +191,6 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
 
     ${PODMAN} build \
         "${BUILD_ARGS[@]}" \
-        "${LABELS[@]}" \
         "${CACHE_ARGS[@]}" \
         --pull=newer \
         --tag "${target_image}:${tag}" \

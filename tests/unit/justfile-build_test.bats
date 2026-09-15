@@ -215,17 +215,43 @@ podman_build_args() {
     [[ "$(podman_build_args)" != *"--secret"* ]]
 }
 
-@test "build: applies the OCI and ArtifactHub labels" {
+@test "build: supplies only dynamic OCI metadata to the Containerfile" {
     run_just build finpilot stable
     [ "$status" -eq 0 ]
     local args
     args="$(podman_build_args)"
-    [[ "${args}" == *"--label org.opencontainers.image.title=finpilot"* ]]
-    [[ "${args}" == *"--label org.opencontainers.image.version=44.20260830"* ]]
-    [[ "${args}" == *"--label org.opencontainers.image.vendor=projectbluefin"* ]]
-    [[ "${args}" == *"--label org.opencontainers.image.created=2026-08-30T00:00:00Z"* ]]
-    [[ "${args}" == *"--label io.artifacthub.package.license=Apache-2.0"* ]]
-    [[ "${args}" == *"--label containers.bootc=1"* ]]
+    [[ "${args}" == *"--build-arg IMAGE_CREATED=2026-08-30T00:00:00Z"* ]]
+    [[ "${args}" != *"IMAGE_DESC="* ]]
+    [[ "${args}" != *"IMAGE_SOURCE="* ]]
+    [[ "${args}" != *"IMAGE_URL="* ]]
+    [[ "${args}" != *"IMAGE_README_URL="* ]]
+    [[ "${args}" != *"--label "* ]]
+}
+
+@test "build: forwards explicit Containerfile metadata overrides" {
+    IMAGE_DESC="Custom image" IMAGE_LOGO_URL="https://example.com/logo.svg" IMAGE_KEYWORDS="bootc,custom" IMAGE_REF="feature" run_just build finpilot stable
+    [ "$status" -eq 0 ]
+    local args
+    args="$(podman_build_args)"
+    [[ "${args}" == *"--build-arg IMAGE_DESC=Custom image"* ]]
+    [[ "${args}" == *"--build-arg IMAGE_LOGO_URL=https://example.com/logo.svg"* ]]
+    [[ "${args}" == *"--build-arg IMAGE_KEYWORDS=bootc,custom"* ]]
+    [[ "${args}" == *"--build-arg IMAGE_REF=feature"* ]]
+}
+
+@test "Containerfile: owns the OCI and ArtifactHub label schema" {
+    run grep -F 'LABEL org.opencontainers.image.title="${IMAGE_NAME}" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'org.opencontainers.image.version="${VERSION}" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'org.opencontainers.image.vendor="${IMAGE_VENDOR}" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'org.opencontainers.image.source="https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}/blob/${IMAGE_REF}/Containerfile" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'io.artifacthub.package.license="Apache-2.0" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'containers.bootc="1"' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
 }
 
 @test "build: reads the layer cache but never writes it by default" {
