@@ -45,9 +45,15 @@ jobs:
       # The authoritative exact-digest release gate runs after the squash merge
       # in execute-release.yml. This promotion PR itself does not duplicate it.
       run_e2e: false
-      # Set true only when stable uses a GitHub merge-queue ruleset. The normal
-      # template path uses GitHub auto-merge and branch-protection approvals.
+      # The only path that auto-enrolls the PR is a merge queue, which needs an
+      # organization-owned repository. Personal-account forks cannot use one.
       use_merge_queue: false
+      # Enrolling without a merge queue calls `gh pr merge --auto` with no merge
+      # method. GitHub CLI rejects that outside a merge queue ("--merge,
+      # --rebase, or --squash required when not running interactively"), so
+      # leave enrollment off: the release gate labels the PR `release/ready`
+      # and a maintainer merges it with the method the `stable` ruleset allows.
+      enqueue_promotion: false
       # Personal-account forks do not have an <owner>/maintainers team.
       # Organization forks can enable this and optionally set `reviewer`.
       request_reviewer: false
