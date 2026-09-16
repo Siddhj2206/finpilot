@@ -105,10 +105,10 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     /ctx/build/20-packages-and-services.sh
 
 ### CLEANUP
-## Use Bluefin's clean-stage.sh to remove build artifacts before linting.
-## /run is deliberately not mounted as tmpfs here: clean-stage.sh must remove
-## image-layer files such as /run/dnf so bootc lint's nonempty-run-tmp check
-## passes. The script tolerates busy Buildah bind mounts while clearing contents.
+## Finalises package and Flatpak sources, then prunes build artifacts before
+## linting. /run is deliberately not mounted as tmpfs here: the script must
+## remove image-layer files such as /run/dnf so bootc lint's nonempty-run-tmp
+## check passes. It tolerates busy Buildah bind mounts while clearing contents.
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/tmp \
     --mount=type=tmpfs,dst=/boot \

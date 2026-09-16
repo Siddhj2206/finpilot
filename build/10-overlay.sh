@@ -38,6 +38,14 @@ rsync -rvK /ctx/oci/brew/ /
 
 echo "::endgroup::"
 
+echo "::group:: Overlay template system files"
+
+# custom/files mirrors the image root, so a fork can ship systemd units,
+# presets, and other system payloads by path.
+rsync -rvKl /ctx/custom/files/ /
+
+echo "::endgroup::"
+
 echo "::group:: Copy template custom declarations"
 
 # custom/config seeds each new user's ~/.config. Updating users who already
@@ -81,6 +89,9 @@ systemctl enable brew-upgrade.timer
 systemctl --global enable brew-preinstall.service
 systemctl enable flatpak-preinstall.service
 systemctl enable flatpak-appstream-refresh.service
+# Adds the Flathub remote on first boot; build-time remote state cannot live in
+# /var (bootc lint rejects it) and flatpak does not read /etc/flatpak/remotes.d.
+systemctl enable flatpak-add-flathub-repos.service
 
 # First-boot setup framework.
 systemctl enable ublue-system-setup.service
