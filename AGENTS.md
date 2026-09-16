@@ -1,5 +1,23 @@
 # Copilot Instructions for finpilot bootc Image Template
 
+## Agent skills
+
+### Issue tracker
+
+Issues and Wayfinder decision tickets live in GitHub Issues for this fork. See
+`docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Temporary Matt Pocock skill triage labels use the default vocabulary. The
+Project Bluefin lifecycle labels remain the repository workflow authority. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+This is a single-context repository. `CONTEXT.md` and `docs/adr/` hold durable
+domain language and decisions. See `docs/agents/domain.md`.
+
 ## Start here
 
 Task-specific instructions are Agent Skills under
@@ -40,6 +58,9 @@ links lives in `.agents/skills/README.md`.
 The promotion release gate verifies cosign signatures on the `:testing` tag;
 keyless signing is enabled by default in `build-image.yml` ("Sign and publish"
 step) and reports `release/ready` once a signed `:testing` image exists.
+**Known gap:** the gate does not run E2E validation (`run_e2e: false`, no
+`e2e_image` configured) — `release/ready` means "signed," not "functionally
+tested." See README.md "Promote to Stable" and issue #281.
 
 ## CRITICAL: GitHub API Usage
 

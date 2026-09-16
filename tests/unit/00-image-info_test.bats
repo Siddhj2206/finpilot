@@ -1,13 +1,7 @@
 #!/usr/bin/env bats
-# Unit tests for build/00-image-info.sh.
-#
-# The script writes to two hardcoded absolute paths (/usr/share/ublue-os and
-# /usr/lib/os-release) and has no filesystem-prefix hook, so each test rewrites
-# a throwaway copy of the script to point at a sandbox root before running it.
-# Production behaviour is never modified; the rewrite is asserted below so the
-# suite fails loudly if the paths in the script ever drift.
-#
-# Run with: bats tests/unit/00-image-info_test.bats
+
+# Unit tests for build/00-image-info.sh. ROOT_DIR directs the script's image
+# filesystem writes into a disposable sandbox.
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 IMAGE_INFO_SRC="${SCRIPT_DIR}/../../build/00-image-info.sh"
@@ -15,31 +9,31 @@ IMAGE_INFO_SRC="${SCRIPT_DIR}/../../build/00-image-info.sh"
 setup() {
     TEST_ROOT="${BATS_TEST_TMPDIR:-${BATS_TMPDIR}}/image-info.${BATS_TEST_NUMBER:-0}.$$"
     SANDBOX="${TEST_ROOT}/root"
-    SCRIPT="${TEST_ROOT}/00-image-info.sh"
-
-    mkdir -p "${SANDBOX}/usr/lib"
-
     IMAGE_INFO_JSON="${SANDBOX}/usr/share/ublue-os/image-info.json"
     OS_RELEASE="${SANDBOX}/usr/lib/os-release"
 
-    sed \
-        -e "s#^IMAGE_INFO=\"/usr/share/ublue-os/image-info.json\"#IMAGE_INFO=\"${SANDBOX}/usr/share/ublue-os/image-info.json\"#" \
-        -e "s#^OS_RELEASE=\"/usr/lib/os-release\"#OS_RELEASE=\"${SANDBOX}/usr/lib/os-release\"#" \
-        -e "s#^mkdir -p /usr/share/ublue-os\$#mkdir -p ${SANDBOX}/usr/share/ublue-os#" \
-        "${IMAGE_INFO_SRC}" >"${SCRIPT}"
-
-    # Required env vars, per the header contract of the script.
+    mkdir -p "$(dirname "${OS_RELEASE}")"
+    export ROOT_DIR="${SANDBOX}"
     export IMAGE_NAME="finpilot"
     export IMAGE_VENDOR="projectbluefin"
-    export UBLUE_IMAGE_TAG="latest"
+    export UBLUE_IMAGE_TAG="stable"
     export BASE_IMAGE_NAME="silverblue"
-    export FEDORA_MAJOR_VERSION="42"
+    export FEDORA_MAJOR_VERSION="44"
 
-    # A stock os-release with no VARIANT_ID, matching a fresh Fedora base image.
     cat >"${OS_RELEASE}" <<'EOF'
 NAME="Fedora Linux"
+VERSION="44.20260905.0 (Silverblue)"
 ID=fedora
-VERSION_ID=42
+VERSION_ID=44
+DEFAULT_HOSTNAME="fedora"
+HOME_URL="https://silverblue.fedoraproject.org"
+DOCUMENTATION_URL="https://docs.fedoraproject.org/"
+SUPPORT_URL="https://ask.fedoraproject.org/"
+BUG_REPORT_URL="https://github.com/fedora-silverblue/issue-tracker/issues"
+ID_LIKE="fedora"
+VARIANT="Silverblue"
+VARIANT_ID=silverblue
+OSTREE_VERSION='44.20260905.0'
 EOF
 }
 
@@ -47,184 +41,123 @@ teardown() {
     rm -rf "${TEST_ROOT}"
 }
 
+run_script() {
+    run bash "${IMAGE_INFO_SRC}"
+}
+
 json_field() {
     python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))[sys.argv[2]])' "${IMAGE_INFO_JSON}" "$1"
 }
 
-@test "00-image-info: sandbox rewrite left no writes to the host filesystem" {
-    # Guards the rewrite above: if the script's paths change, the sed no longer
-    # matches and every other test in this file would silently write to the host.
-    run grep -nE '^IMAGE_INFO="/usr/|^OS_RELEASE="/usr/|^mkdir -p /usr/' "${SCRIPT}"
-    [ "$status" -ne 0 ]
-
-    grep -q "^IMAGE_INFO=\"${SANDBOX}/usr/share/ublue-os/image-info.json\"$" "${SCRIPT}"
-    grep -q "^OS_RELEASE=\"${SANDBOX}/usr/lib/os-release\"$" "${SCRIPT}"
-    grep -q "^mkdir -p ${SANDBOX}/usr/share/ublue-os$" "${SCRIPT}"
-}
-
-@test "00-image-info: writes image-info.json and exits cleanly" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    [ -f "${IMAGE_INFO_JSON}" ]
-}
-
-@test "00-image-info: image-info.json is valid JSON with the documented fields" {
-    run bash "${SCRIPT}"
+@test "00-image-info: writes Bluefin-compatible image metadata" {
+    run_script
     [ "$status" -eq 0 ]
 
     run python3 -m json.tool "${IMAGE_INFO_JSON}"
     [ "$status" -eq 0 ]
-
     [ "$(json_field image-name)" = "finpilot" ]
     [ "$(json_field image-vendor)" = "projectbluefin" ]
-    [ "$(json_field image-tag)" = "latest" ]
-    [ "$(json_field base-image-name)" = "silverblue" ]
-    [ "$(json_field fedora-version)" = "42" ]
-}
-
-@test "00-image-info: image-ref is the signed ghcr ref bootc upgrades from" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
     [ "$(json_field image-ref)" = "ostree-image-signed:docker://ghcr.io/projectbluefin/finpilot" ]
+    [ "$(json_field image-tag)" = "stable" ]
+    [ "$(json_field base-image-name)" = "silverblue" ]
+    [ "$(json_field fedora-version)" = "44" ]
 }
 
-@test "00-image-info: image flavor is main for a non-nvidia image name" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    [ "$(json_field image-flavor)" = "main" ]
-}
-
-@test "00-image-info: image flavor is nvidia when the name contains nvidia" {
+@test "00-image-info: does not create a flavor field from the image name" {
     export IMAGE_NAME="finpilot-nvidia"
-    run bash "${SCRIPT}"
+    run_script
     [ "$status" -eq 0 ]
-    [ "$(json_field image-flavor)" = "nvidia" ]
     [ "$(json_field image-ref)" = "ostree-image-signed:docker://ghcr.io/projectbluefin/finpilot-nvidia" ]
+    run python3 -c 'import json,sys; sys.exit("image-flavor" in json.load(open(sys.argv[1])))' "${IMAGE_INFO_JSON}"
+    [ "$status" -eq 0 ]
 }
 
-@test "00-image-info: nvidia match is a substring match, not a suffix match" {
-    export IMAGE_NAME="finpilot-nvidia-open"
-    run bash "${SCRIPT}"
+@test "00-image-info: updates existing base os-release identity" {
+    export VERSION="44.20260907.1"
+    run_script
     [ "$status" -eq 0 ]
-    [ "$(json_field image-flavor)" = "nvidia" ]
-}
 
-@test "00-image-info: reports the derived identity on stdout" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"image-name: finpilot"* ]]
-    [[ "$output" == *"image-flavor: main"* ]]
-    [[ "$output" == *"image-vendor: projectbluefin"* ]]
-}
-
-@test "00-image-info: appends image identity to os-release" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    [[ "$output" == *"Customized"* ]]
-
-    run grep -c '^VARIANT_ID="main"$' "${OS_RELEASE}"
-    [ "$status" -eq 0 ]
-    [ "$output" -eq 1 ]
-
+    grep -q '^VARIANT_ID="finpilot"$' "${OS_RELEASE}"
+    grep -q '^PRETTY_NAME="finpilot (Version: 44.20260907.1)"$' "${OS_RELEASE}"
     grep -q '^NAME="finpilot"$' "${OS_RELEASE}"
+    grep -q '^VERSION="44.20260907.1 (silverblue)"$' "${OS_RELEASE}"
+    grep -q '^OSTREE_VERSION="44.20260907.1"$' "${OS_RELEASE}"
     grep -q '^IMAGE_ID="finpilot"$' "${OS_RELEASE}"
+    grep -q '^IMAGE_VERSION="44.20260907.1"$' "${OS_RELEASE}"
+    grep -q '^DEFAULT_HOSTNAME="fedora"$' "${OS_RELEASE}"
+    grep -q '^ID=fedora$' "${OS_RELEASE}"
     grep -q '^ID_LIKE="fedora"$' "${OS_RELEASE}"
 }
 
-@test "00-image-info: os-release URLs default to the vendor/name GitHub repo" {
-    run bash "${SCRIPT}"
+@test "00-image-info: derives GitHub URLs from image identity" {
+    run_script
     [ "$status" -eq 0 ]
 
     grep -q '^HOME_URL="https://github.com/projectbluefin/finpilot"$' "${OS_RELEASE}"
     grep -q '^DOCUMENTATION_URL="https://github.com/projectbluefin/finpilot/blob/main/README.md"$' "${OS_RELEASE}"
     grep -q '^SUPPORT_URL="https://github.com/projectbluefin/finpilot/issues"$' "${OS_RELEASE}"
     grep -q '^BUG_REPORT_URL="https://github.com/projectbluefin/finpilot/issues/new"$' "${OS_RELEASE}"
+    grep -q '^ID_LIKE="fedora"$' "${OS_RELEASE}"
 }
 
-@test "00-image-info: branding env vars override the defaults" {
-    export IMAGE_PRETTY_NAME="Finpilot OS"
-    export IMAGE_LIKE="fedora rhel"
+@test "00-image-info: permits explicit URL overrides without changing base identity" {
     export HOME_URL="https://finpilot.example"
-    run bash "${SCRIPT}"
+    export DOCUMENTATION_URL="https://docs.finpilot.example"
+    export SUPPORT_URL="https://support.finpilot.example"
+    export BUG_REPORT_URL="https://bugs.finpilot.example"
+    run_script
     [ "$status" -eq 0 ]
 
-    grep -q '^PRETTY_NAME="Finpilot OS"$' "${OS_RELEASE}"
-    grep -q '^ID_LIKE="fedora rhel"$' "${OS_RELEASE}"
+    grep -q '^PRETTY_NAME="finpilot (Version: stable)"$' "${OS_RELEASE}"
+    grep -q '^NAME="finpilot"$' "${OS_RELEASE}"
+    grep -q '^ID_LIKE="fedora"$' "${OS_RELEASE}"
     grep -q '^HOME_URL="https://finpilot.example"$' "${OS_RELEASE}"
+    grep -q '^DOCUMENTATION_URL="https://docs.finpilot.example"$' "${OS_RELEASE}"
+    grep -q '^SUPPORT_URL="https://support.finpilot.example"$' "${OS_RELEASE}"
+    grep -q '^BUG_REPORT_URL="https://bugs.finpilot.example"$' "${OS_RELEASE}"
 }
 
-@test "00-image-info: IMAGE_VERSION uses VERSION when it is set" {
-    export VERSION="stable-42.20250531"
-    run bash "${SCRIPT}"
+@test "00-image-info: records a source revision when supplied" {
+    export SHA_HEAD_SHORT="abc1234"
+    run_script
     [ "$status" -eq 0 ]
-    grep -q '^IMAGE_VERSION="stable-42.20250531"$' "${OS_RELEASE}"
+    grep -q '^BUILD_ID="abc1234"$' "${OS_RELEASE}"
 }
 
-@test "00-image-info: IMAGE_VERSION falls back to the image tag when VERSION is unset" {
-    run bash "${SCRIPT}"
+@test "00-image-info: is idempotent" {
+    run_script
     [ "$status" -eq 0 ]
-    grep -q '^IMAGE_VERSION="latest"$' "${OS_RELEASE}"
-}
-
-@test "00-image-info: IMAGE_VERSION falls back to the image tag when VERSION is empty" {
-    export VERSION=""
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    grep -q '^IMAGE_VERSION="latest"$' "${OS_RELEASE}"
-}
-
-@test "00-image-info: os-release append is idempotent across two runs" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    run bash "${SCRIPT}"
+    run_script
     [ "$status" -eq 0 ]
 
     run grep -c '^VARIANT_ID=' "${OS_RELEASE}"
     [ "$output" -eq 1 ]
-    run grep -c '^IMAGE_ID="finpilot"$' "${OS_RELEASE}"
+    run grep -c '^IMAGE_ID=' "${OS_RELEASE}"
     [ "$output" -eq 1 ]
 }
 
-@test "00-image-info: pre-existing VARIANT_ID suppresses the os-release append" {
-    printf 'VARIANT_ID="preset"\n' >>"${OS_RELEASE}"
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    [[ "$output" != *"Customized"* ]]
-
-    run grep -c '^VARIANT_ID=' "${OS_RELEASE}"
-    [ "$output" -eq 1 ]
-    grep -q '^VARIANT_ID="preset"$' "${OS_RELEASE}"
-}
-
-@test "00-image-info: image-info.json is still written when os-release is absent" {
+@test "00-image-info: still writes metadata without os-release" {
     rm -f "${OS_RELEASE}"
-    run bash "${SCRIPT}"
+    run_script
     [ "$status" -eq 0 ]
     [ -f "${IMAGE_INFO_JSON}" ]
     [ ! -f "${OS_RELEASE}" ]
 }
 
-@test "00-image-info: image-info.json is rewritten, not appended, on a second run" {
-    run bash "${SCRIPT}"
-    [ "$status" -eq 0 ]
-    export IMAGE_NAME="finpilot-nvidia"
-    run bash "${SCRIPT}"
+@test "00-image-info: escapes JSON values" {
+    export IMAGE_PRETTY_NAME='Finpilot "OS"'
+    export IMAGE_NAME='finpilot"test'
+    run_script
     [ "$status" -eq 0 ]
 
     run python3 -m json.tool "${IMAGE_INFO_JSON}"
     [ "$status" -eq 0 ]
-    [ "$(json_field image-name)" = "finpilot-nvidia" ]
+    [ "$(json_field image-name)" = 'finpilot"test' ]
 }
 
-@test "00-image-info: fails fast when a required env var is missing" {
+@test "00-image-info: fails before writing when required identity is missing" {
     unset IMAGE_NAME
-    run bash "${SCRIPT}"
+    run_script
     [ "$status" -ne 0 ]
     [ ! -f "${IMAGE_INFO_JSON}" ]
-}
-
-@test "00-image-info: fails fast when the image tag is missing" {
-    unset UBLUE_IMAGE_TAG
-    run bash "${SCRIPT}"
-    [ "$status" -ne 0 ]
 }
