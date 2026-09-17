@@ -19,7 +19,6 @@ on:
       - "Justfile"
       - ".github/workflows/execute-release.yml"
       - ".github/workflows/unit-tests.yml"
-  merge_group:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
