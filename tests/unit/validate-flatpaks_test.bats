@@ -2,8 +2,9 @@
 # Tests for build/validate-flatpaks.sh.
 #
 # All runs use a fake flatpak binary, never the host's. The contract under
-# test: every [Flatpak Preinstall <app>] section must declare Branch=, every
-# app-id is passed to `flatpak remote-info` as data, and an empty discovery
+# test: every line must be blank, a '#' comment, a [Flatpak Preinstall <app-id>]
+# header, or a key=value pair; every such section must declare Branch=; every
+# app-id is passed to `flatpak remote-info` as data; and an empty discovery
 # result fails closed instead of passing vacuously.
 #
 # Run with: bats tests/unit/validate-flatpaks_test.bats
@@ -102,4 +103,49 @@ EOF
     [ "${output}" = "1" ]
     run grep -c '^remote-info --user flathub org.gnome.Calculator$' "${CALLS}"
     [ "${output}" = "1" ]
+}
+
+@test "validator accepts blank lines and # comments" {
+    cat > "${FIXTURES}/base.preinstall" <<'EOF'
+# Header comment
+
+[Flatpak Preinstall org.gnome.Calculator]
+Branch=stable
+
+# Trailing comment
+EOF
+    run bash "${SCRIPT}" "${FIXTURES}"
+    [ "${status}" -eq 0 ]
+    [[ "${output}" == *"1 preinstall files, 1 app checks, 0 failures."* ]]
+}
+
+@test "validator rejects a ';' comment, which flatpak parses as a syntax error" {
+    # flatpak's parser is GKeyFile: ';' is not a comment character, and a
+    # malformed line makes it discard the whole file while still exiting 0.
+    cat > "${FIXTURES}/base.preinstall" <<'EOF'
+# Header
+;[Flatpak Preinstall org.gnome.Calculator]
+;Branch=stable
+
+[Flatpak Preinstall org.gnome.TextEditor]
+Branch=stable
+EOF
+    run bash "${SCRIPT}" "${FIXTURES}"
+    [ "${status}" -eq 1 ]
+    [[ "${output}" == *"FAIL: ${FIXTURES}/base.preinstall:2: not a # comment"* ]]
+    [[ "${output}" == *"FAIL: ${FIXTURES}/base.preinstall:3: not a # comment"* ]]
+    # The well-formed section is still checked and reported.
+    [[ "${output}" == *"PASS: ${FIXTURES}/base.preinstall: org.gnome.TextEditor (stable)"* ]]
+    [[ "${output}" == *"1 app checks, 2 failures."* ]]
+}
+
+@test "validator rejects a group header flatpak would skip" {
+    # Groups are matched by prefix and anything else is skipped at g_info level,
+    # so a header with no app-id installs nothing and says nothing.
+    cat > "${FIXTURES}/base.preinstall" <<'EOF'
+[Flatpak Preinstall]
+EOF
+    run bash "${SCRIPT}" "${FIXTURES}"
+    [ "${status}" -eq 1 ]
+    [[ "${output}" == *"FAIL: ${FIXTURES}/base.preinstall:1: not a # comment"* ]]
 }

@@ -35,7 +35,7 @@
 
 # OCI context images - imported below and pinned directly in their FROM lines.
 # The base image is pinned in the FROM line below and updated by Renovate.
-FROM ghcr.io/projectbluefin/common:latest@sha256:cba9a07b7e699ab42923581de90254eacf624b89425be094a1588f381c7902b1 AS common
+FROM ghcr.io/projectbluefin/common:latest@sha256:22681014132bea5229ec011547ef29cec16904f106b66878015009df829d6f74 AS common
 FROM ghcr.io/ublue-os/brew:latest@sha256:60ada2d65891d8797beef49d8b43f2108519cbbaf04c9c7363e1a008677fcd35 AS brew
 
 # Context stage - combine local and imported OCI container resources
@@ -50,7 +50,7 @@ COPY --from=brew /system_files /oci/brew
 
 # Base Image - GNOME included (Fedora official OSTree desktop)
 # Renovate will keep the digest pin up to date.
-FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:ece43ccc720223cc4946b72369873bc107be0a16404cd424e5c3e7824b659eea
+FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:31849a8d673039a5fae8565f19428ac5b432ee67cba4c2cbe606415486bcd18a
 
 # Image identity - these define how bootc, fastfetch, and the ublue ecosystem
 # recognize your image. Change these to match your project name.
@@ -132,9 +132,15 @@ ARG IMAGE_CREATED=""
 ARG IMAGE_LOGO_URL="https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
 ARG IMAGE_KEYWORDS="bootc,ublue,universal-blue"
 ARG IMAGE_REF="main"
+## The commit the image was built from. It is declared here, with the other
+## volatile metadata, so a new commit only invalidates the label layer.
+## Declaring it before 00-image-info.sh would invalidate the package and overlay
+## layers on every commit, which is why os-release does not carry it.
+ARG SHA_HEAD_SHORT=""
 
 LABEL org.opencontainers.image.title="${IMAGE_NAME}" \
       org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${SHA_HEAD_SHORT}" \
       org.opencontainers.image.description="${IMAGE_DESC}" \
       org.opencontainers.image.source="https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}/blob/${IMAGE_REF}/Containerfile" \
       org.opencontainers.image.url="https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}" \
