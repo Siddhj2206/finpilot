@@ -76,10 +76,10 @@ jobs:
   # `action_required` until someone approves it, so the promotion PR's own
   # validation reports nothing until then. The required `validate` status is
   # posted by the release gate itself, so this never blocks the merge, but
-  # without the approval the checks effectively never run:
-  # approve-trusted-promotion-runs.yml clears them on a schedule GitHub
-  # throttles to hours here. Approving in this run starts them seconds after the
-  # branch is pushed, with the scheduled workflow kept as the backstop.
+  # without the approval the checks effectively never run — and GitHub throttles
+  # scheduled unblocking workflows to hours. Approving them here starts the
+  # checks seconds after the branch is pushed. If one is ever missed, approve it
+  # from the run's page.
   unblock-promotion-checks:
     name: Unblock the promotion PR's checks
     needs: [promote]
