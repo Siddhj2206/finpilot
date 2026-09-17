@@ -117,11 +117,16 @@ json_field() {
     grep -q '^BUG_REPORT_URL="https://bugs.finpilot.example"$' "${OS_RELEASE}"
 }
 
-@test "00-image-info: records a source revision when supplied" {
+@test "00-image-info: does not write BUILD_ID from a supplied revision" {
+    # The build commit is published as org.opencontainers.image.revision, not
+    # in os-release: SHA_HEAD_SHORT is declared late in the Containerfile to
+    # protect layer caching, so this early phase never sees it.
     export SHA_HEAD_SHORT="abc1234"
     run_script
     [ "$status" -eq 0 ]
-    grep -q '^BUILD_ID="abc1234"$' "${OS_RELEASE}"
+
+    run grep -c '^BUILD_ID=' "${OS_RELEASE}"
+    [ "$output" -eq 0 ]
 }
 
 @test "00-image-info: is idempotent" {

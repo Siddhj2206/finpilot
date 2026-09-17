@@ -42,13 +42,86 @@ jobs:
       registry: ghcr.io/${{ github.repository_owner }}
       source_branch: main
       target_branch: stable
-      # The authoritative exact-digest release gate runs after the squash merge
-      # in execute-release.yml. This promotion PR itself does not duplicate it.
+      # A personal image runs no e2e suites. The gate verifies the candidate
+      # digest's cosign signature, and execute-release.yml re-verifies the same
+      # digest before promoting it, so "release/ready" means signed and
+      # unmodified, not functionally tested.
       run_e2e: false
-      # Set true only when stable uses a GitHub merge-queue ruleset. The normal
-      # template path uses GitHub auto-merge and branch-protection approvals.
+      # The only path that auto-enrolls the PR is a merge queue, which needs an
+      # organization-owned repository. Personal-account forks cannot use one.
       use_merge_queue: false
+      # Enrolling without a merge queue runs `gh pr merge --auto` with no merge
+      # method, and GitHub CLI refuses that without a TTY ("--merge, --rebase,
+      # or --squash required when not running interactively"; observed on run
+      # 35105796232). The reusable exposes no merge-method input, so the
+      # arm-auto-merge job below arms auto-merge with --squash instead.
+      enqueue_promotion: false
       # Personal-account forks do not have an <owner>/maintainers team.
       # Organization forks can enable this and optionally set `reviewer`.
       request_reviewer: false
     secrets: inherit
+
+  # Auto-merge is armed here rather than inside the reusable because its
+  # non-queue enrollment path calls `gh pr merge --auto` with no merge method,
+  # which GitHub CLI rejects outside a merge queue. A failed release gate fails
+  # the reusable call, so this job never runs against a blocked gate. A run with
+  # nothing to promote skips the gate but still succeeds, so the release/ready
+  # label check below is what keeps a no-op run from arming a stale open PR.
+  # Auto-merge then waits for the approval the `stable` ruleset requires and
+  # merges with the one method that ruleset allows.
+  arm-auto-merge:
+    name: Arm auto-merge on the promotion PR
+    needs: [promote]
+    if: needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PROMOTION_BRANCH: auto/promote-main-to-stable
+    steps:
+      - name: Arm auto-merge after the release gate
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # The reusable declares no workflow-level outputs, so find the PR by
+          # its deterministic head/base pair: reusable-promote-squash derives
+          # auto/promote-<source>-to-<target> from the branch-model inputs.
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --base stable \
+            --head "${PROMOTION_BRANCH}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "::notice::No open promotion PR; nothing to arm."
+            exit 0
+          fi
+
+          LABELS=$(gh pr view "${PR_NUMBER}" \
+            --repo "${{ github.repository }}" \
+            --json labels \
+            --jq '[.labels[].name] | join(",")')
+
+          if grep -qw 'do-not-merge' <<<"${LABELS}"; then
+            echo "::notice::PR #${PR_NUMBER} carries do-not-merge; auto-merge not armed."
+            exit 0
+          fi
+          if ! grep -qw 'release/ready' <<<"${LABELS}"; then
+            echo "::notice::PR #${PR_NUMBER} is not labelled release/ready; auto-merge not armed."
+            exit 0
+          fi
+
+          # --squash is mandatory: without an explicit method gh exits with
+          # "--merge, --rebase, or --squash required when not running
+          # interactively". The merge itself still waits on the ruleset.
+          gh pr merge "${PR_NUMBER}" \
+            --repo "${{ github.repository }}" \
+            --squash \
+            --auto
+          echo "Armed auto-merge on PR #${PR_NUMBER}"

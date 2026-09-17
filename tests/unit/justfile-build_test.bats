@@ -17,6 +17,12 @@ setup() {
         skip "just is not installed"
     fi
 
+    # REPO_ORG falls back to GITHUB_REPOSITORY_OWNER, which GitHub Actions sets
+    # to the real repository owner. The assertions below expect the template's
+    # documented default, so neutralise the ambient value here. The
+    # owner-derived behaviour has its own test.
+    unset GITHUB_REPOSITORY_OWNER
+
     TEST_ROOT="${BATS_TEST_TMPDIR:-${BATS_TMPDIR}}/justfile-build.${BATS_TEST_NUMBER:-0}.$$"
     STUB_BIN="${TEST_ROOT}/stub-bin"
     SANDBOX="${TEST_ROOT}/repo"
@@ -181,6 +187,18 @@ podman_build_args() {
     [[ "${args}" == *"--build-arg UBLUE_IMAGE_TAG=stable"* ]]
 }
 
+@test "build: falls back to the GitHub repository owner for the vendor" {
+    # A fork needs no edits: Actions sets GITHUB_REPOSITORY_OWNER, so the image
+    # and its layer cache follow the fork's owner.
+    GITHUB_REPOSITORY_OWNER="acme-org" run_just build finpilot stable
+    [ "$status" -eq 0 ]
+
+    local args
+    args="$(podman_build_args)"
+    [[ "${args}" == *"--build-arg IMAGE_VENDOR=acme-org"* ]]
+    [[ "${args}" == *"--cache-from ghcr.io/acme-org/finpilot"* ]]
+}
+
 @test "build: honours IMAGE_VENDOR and UBLUE_IMAGE_TAG overrides" {
     IMAGE_VENDOR="acme" UBLUE_IMAGE_TAG="pinned" run_just build finpilot stable
     [ "$status" -eq 0 ]
@@ -210,6 +228,9 @@ podman_build_args() {
 }
 
 @test "build: does not add a build secret when GITHUB_TOKEN is unset" {
+    # Do not inherit an exported token from the developer's shell or a workflow
+    # that passes one in; the assertion is specifically about the unset case.
+    unset GITHUB_TOKEN
     run_just build finpilot stable
     [ "$status" -eq 0 ]
     [[ "$(podman_build_args)" != *"--secret"* ]]
@@ -243,6 +264,8 @@ podman_build_args() {
     run grep -F 'LABEL org.opencontainers.image.title="${IMAGE_NAME}" \' "${REPO_ROOT}/Containerfile"
     [ "$status" -eq 0 ]
     run grep -F 'org.opencontainers.image.version="${VERSION}" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
+    run grep -F 'org.opencontainers.image.revision="${SHA_HEAD_SHORT}" \' "${REPO_ROOT}/Containerfile"
     [ "$status" -eq 0 ]
     run grep -F 'org.opencontainers.image.vendor="${IMAGE_VENDOR}" \' "${REPO_ROOT}/Containerfile"
     [ "$status" -eq 0 ]
@@ -329,4 +352,15 @@ podman_build_args() {
     run_just tag-images finpilot stable "latest"
     [ "$status" -ne 0 ]
     ! grep -q '^untag ' "${PODMAN_LOG}"
+}
+
+@test "Containerfile: declares SHA_HEAD_SHORT after the package layers" {
+    # The commit changes on every push. Declaring the arg before the package and
+    # overlay phases would invalidate those layers each time, so it belongs in
+    # the late metadata block with the other volatile values.
+    marker=$(grep -n '### IMAGE METADATA' "${REPO_ROOT}/Containerfile" | cut -d: -f1)
+    arg=$(grep -n 'ARG SHA_HEAD_SHORT' "${REPO_ROOT}/Containerfile" | cut -d: -f1)
+    [ -n "${marker}" ]
+    [ -n "${arg}" ]
+    [ "${arg}" -gt "${marker}" ]
 }
