@@ -2,7 +2,7 @@ export IMAGE_NAME := env("IMAGE_NAME", "finpilot")
 export DEFAULT_TAG := env("DEFAULT_TAG", "stable")
 export PODMAN := env("PODMAN", "podman")
 export REPO_ORG := env("GITHUB_REPOSITORY_OWNER", "projectbluefin")
-export bib_image := env("BIB_IMAGE", "ghcr.io/osbuild/bootc-image-builder:latest@sha256:38bfc5efa52c5f24a7953f3e58a9f560a65572fbce40d2fdc2136e0d2a45bd98")
+export bib_image := env("BIB_IMAGE", "ghcr.io/osbuild/bootc-image-builder:latest@sha256:536391d6c36b32c33f5a7e30deaffa3af1dfe66128284e0cfd73e7fcb9ccfd72")
 
 alias build-vm := build-qcow2
 alias rebuild-vm := rebuild-qcow2
