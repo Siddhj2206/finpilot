@@ -132,9 +132,15 @@ ARG IMAGE_CREATED=""
 ARG IMAGE_LOGO_URL="https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
 ARG IMAGE_KEYWORDS="bootc,ublue,universal-blue"
 ARG IMAGE_REF="main"
+## The commit the image was built from. It is declared here, with the other
+## volatile metadata, so a new commit only invalidates the label layer.
+## Declaring it before 00-image-info.sh would invalidate the package and overlay
+## layers on every commit, which is why os-release does not carry it.
+ARG SHA_HEAD_SHORT=""
 
 LABEL org.opencontainers.image.title="${IMAGE_NAME}" \
       org.opencontainers.image.version="${VERSION}" \
+      org.opencontainers.image.revision="${SHA_HEAD_SHORT}" \
       org.opencontainers.image.description="${IMAGE_DESC}" \
       org.opencontainers.image.source="https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}/blob/${IMAGE_REF}/Containerfile" \
       org.opencontainers.image.url="https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}" \

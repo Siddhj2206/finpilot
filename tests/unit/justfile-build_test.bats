@@ -244,6 +244,8 @@ podman_build_args() {
     [ "$status" -eq 0 ]
     run grep -F 'org.opencontainers.image.version="${VERSION}" \' "${REPO_ROOT}/Containerfile"
     [ "$status" -eq 0 ]
+    run grep -F 'org.opencontainers.image.revision="${SHA_HEAD_SHORT}" \' "${REPO_ROOT}/Containerfile"
+    [ "$status" -eq 0 ]
     run grep -F 'org.opencontainers.image.vendor="${IMAGE_VENDOR}" \' "${REPO_ROOT}/Containerfile"
     [ "$status" -eq 0 ]
     run grep -F 'org.opencontainers.image.source="https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}/blob/${IMAGE_REF}/Containerfile" \' "${REPO_ROOT}/Containerfile"
@@ -329,4 +331,15 @@ podman_build_args() {
     run_just tag-images finpilot stable "latest"
     [ "$status" -ne 0 ]
     ! grep -q '^untag ' "${PODMAN_LOG}"
+}
+
+@test "Containerfile: declares SHA_HEAD_SHORT after the package layers" {
+    # The commit changes on every push. Declaring the arg before the package and
+    # overlay phases would invalidate those layers each time, so it belongs in
+    # the late metadata block with the other volatile values.
+    marker=$(grep -n '### IMAGE METADATA' "${REPO_ROOT}/Containerfile" | cut -d: -f1)
+    arg=$(grep -n 'ARG SHA_HEAD_SHORT' "${REPO_ROOT}/Containerfile" | cut -d: -f1)
+    [ -n "${marker}" ]
+    [ -n "${arg}" ]
+    [ "${arg}" -gt "${marker}" ]
 }
