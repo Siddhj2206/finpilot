@@ -23,7 +23,10 @@ Brewfiles are Homebrew's way of declaring packages in a declarative format. They
 **Example Files in this directory:**
 - [`default.Brewfile`](default.Brewfile) - Essential command-line tools
 - [`development.Brewfile`](development.Brewfile) - Development tools and languages
-- [`fonts.Brewfile`](fonts.Brewfile) - Programming fonts
+
+The image also ships `/usr/share/ublue-os/homebrew/fonts.Brewfile`, a curated
+font set from the inherited shared layer, so this directory does not need its
+own.
 
 ### Installing Packages from Brewfiles
 
@@ -37,7 +40,6 @@ Or use the convenient ujust commands defined in [`custom/ujust/custom-apps.just`
 ```bash
 ujust install-default-apps
 ujust install-dev-tools
-ujust install-fonts
 ```
 
 ## File Format
@@ -62,7 +64,6 @@ cask "visual-studio-code"
 Edit the existing Brewfiles or create new ones:
 - **[`default.Brewfile`](default.Brewfile)** - Modify for your essential tools
 - **[`development.Brewfile`](development.Brewfile)** - Add your dev stack
-- **[`fonts.Brewfile`](fonts.Brewfile)** - Add preferred fonts
 - **Create new files** - `gaming.Brewfile`, `media.Brewfile`, etc.
 
 When you add new Brewfiles, create corresponding ujust commands in [`custom/ujust/custom-apps.just`](../ujust/custom-apps.just) for easy installation.

@@ -4,7 +4,7 @@
 # The script overlays the Common/Brew OCI payloads and writes the template's
 # custom declarations under /usr/share and /etc/skel, so each test rewrites a
 # throwaway copy to point at a sandbox root and stubs the binaries it shells
-# out to (rsync, systemctl). Production behaviour is never modified; the
+# out to (rsync, systemctl, curl). Production behaviour is never modified; the
 # rewrite is asserted below so the suite fails loudly if the paths in the
 # script ever drift.
 #
@@ -23,6 +23,7 @@ setup() {
 
 	RSYNC_LOG="${TEST_ROOT}/logs/rsync.log"
 	SYSTEMCTL_LOG="${TEST_ROOT}/logs/systemctl.log"
+	CURL_LOG="${TEST_ROOT}/logs/curl.log"
 
 	HOMEBREW_DIR="${SANDBOX}/usr/share/ublue-os/homebrew"
 	JUST_DIR="${SANDBOX}/usr/share/ublue-os/just"
@@ -45,12 +46,13 @@ setup() {
 		-e "s#/ctx/#${CTX}/#g" \
 		-e "s#/usr/share/#${SANDBOX}/usr/share/#g" \
 		-e "s#/etc/skel#${SANDBOX}/etc/skel#g" \
+		-e "s#/etc/flatpak#${SANDBOX}/etc/flatpak#g" \
 		"${OVERLAY_SRC}" >"${SCRIPT}"
 
 	export PATH="${STUB_BIN}:${PATH}"
-	export RSYNC_LOG SYSTEMCTL_LOG
+	export RSYNC_LOG SYSTEMCTL_LOG CURL_LOG
 
-	for tool in rsync systemctl; do
+	for tool in rsync systemctl curl; do
 		local log_var
 		log_var="$(printf '%s' "${tool}" | tr '[:lower:]' '[:upper:]')_LOG"
 		cat >"${STUB_BIN}/${tool}" <<EOF
