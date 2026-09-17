@@ -56,58 +56,52 @@ jobs:
       # Enrolling without a merge queue runs `gh pr merge --auto` with no merge
       # method, and GitHub CLI refuses that without a TTY ("--merge, --rebase,
       # or --squash required when not running interactively"; observed on run
-      # 35105796232). The reusable exposes no merge-method input, so the
-      # arm-auto-merge job below arms auto-merge with --squash instead.
+      # 35105796232). The reusable exposes no merge-method input, so enrollment
+      # stays off and the promotion PR is merged by hand.
+      #
+      # Merging by hand matters beyond the merge method. A merge performed as
+      # github-actions creates no workflow runs — a push made with that token is
+      # exempt only for workflow_dispatch and repository_dispatch — so the
+      # push-triggered execute-release.yml and sync-stable-to-main.yml never
+      # fire for it and the release becomes a manual dispatch. A merge performed
+      # by a person fires both, which is why this PR is merged in the UI rather
+      # than by a bot.
       enqueue_promotion: false
       # Personal-account forks do not have an <owner>/maintainers team.
       # Organization forks can enable this and optionally set `reviewer`.
       request_reviewer: false
     secrets: inherit
 
-  # Two things happen here, both because the shared reusable cannot do them.
-  #
-  # Auto-merge: its non-queue enrollment path calls `gh pr merge --auto` with no
-  # merge method, which GitHub CLI rejects outside a merge queue. A failed
-  # release gate fails the reusable call, so this job never runs against a
-  # blocked gate. A run with nothing to promote skips the gate but still
-  # succeeds, so the release/ready label check is what keeps a no-op run from
-  # arming a stale open PR. Auto-merge then waits for the approval the `stable`
-  # ruleset requires and merges with the one method that ruleset allows.
-  #
-  # Check approval: GitHub holds every check run it creates for a bot-authored
-  # pull request in `action_required` until someone approves it, so the required
-  # `validate` check reports only after that. approve-trusted-promotion-runs.yml
-  # clears them on a throttle-prone schedule, which left the promotion PR
-  # unvalidated for most of a morning. Approving here starts validation seconds
-  # after the branch is pushed; the scheduled workflow stays as the backstop.
-  #
-  # Whoever expects a release to follow the merge automatically: the merge is
-  # performed as github-actions, and a push made with that token creates no
-  # workflow runs, so execute-release.yml's `push` trigger never fires for it.
-  # Dispatch Execute Release after the merge, or merge the PR by hand.
-  arm-auto-merge:
-    name: Arm auto-merge and unblock the promotion checks
+  # GitHub holds every check run it creates for a bot-authored pull request in
+  # `action_required` until someone approves it, so the promotion PR's own
+  # validation reports nothing until then. The required `validate` status is
+  # posted by the release gate itself, so this never blocks the merge, but
+  # without the approval the checks effectively never run:
+  # approve-trusted-promotion-runs.yml clears them on a schedule GitHub
+  # throttles to hours here. Approving in this run starts them seconds after the
+  # branch is pushed, with the scheduled workflow kept as the backstop.
+  unblock-promotion-checks:
+    name: Unblock the promotion PR's checks
     needs: [promote]
     if: needs.promote.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       actions: write
-      contents: write
-      pull-requests: write
+      pull-requests: read
     env:
       GH_TOKEN: ${{ github.token }}
       PROMOTION_BRANCH: auto/promote-main-to-stable
     steps:
-      - name: Arm auto-merge after the release gate
-        id: arm
+      - name: Approve pending runs on the promotion branch
         shell: bash
         run: |
           set -euo pipefail
 
           # The reusable declares no workflow-level outputs, so find the PR by
           # its deterministic head/base pair: reusable-promote-squash derives
-          # auto/promote-<source>-to-<target> from the branch-model inputs.
+          # auto/promote-<source>-to-<target> from the branch-model inputs. A
+          # no-op run, where main and stable already match, has no PR at all.
           PR_NUMBER=$(gh pr list \
             --repo "${{ github.repository }}" \
             --base stable \
@@ -115,44 +109,10 @@ jobs:
             --state open \
             --json number \
             --jq '.[0].number // empty')
-
           if [ -z "${PR_NUMBER}" ]; then
-            echo "::notice::No open promotion PR; nothing to arm."
+            echo "::notice::No open promotion PR; nothing to unblock."
             exit 0
           fi
-
-          # Emitted before the label checks so the unblock step below runs for
-          # any open promotion PR, whatever the gate decided.
-          echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
-
-          LABELS=$(gh pr view "${PR_NUMBER}" \
-            --repo "${{ github.repository }}" \
-            --json labels \
-            --jq '[.labels[].name] | join(",")')
-
-          if grep -qw 'do-not-merge' <<<"${LABELS}"; then
-            echo "::notice::PR #${PR_NUMBER} carries do-not-merge; auto-merge not armed."
-            exit 0
-          fi
-          if ! grep -qw 'release/ready' <<<"${LABELS}"; then
-            echo "::notice::PR #${PR_NUMBER} is not labelled release/ready; auto-merge not armed."
-            exit 0
-          fi
-
-          # --squash is mandatory: without an explicit method gh exits with
-          # "--merge, --rebase, or --squash required when not running
-          # interactively". The merge itself still waits on the ruleset.
-          gh pr merge "${PR_NUMBER}" \
-            --repo "${{ github.repository }}" \
-            --squash \
-            --auto
-          echo "Armed auto-merge on PR #${PR_NUMBER}"
-
-      - name: Approve pending runs on the promotion branch
-        if: steps.arm.outputs.pr_number != ''
-        shell: bash
-        run: |
-          set -euo pipefail
 
           # The same trust boundary the scheduled approver documents: only runs
           # on the bot-owned promotion branch, from the bot itself. Those
