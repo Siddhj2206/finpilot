@@ -12,16 +12,23 @@ alias run-vm := run-vm-qcow2
 default:
     @just --list
 
+# Rewrite every justfile in place, or report drift instead when passed --check.
+# `check` and `fix` both call this so the file set has one definition.
+[private]
+_format-justfiles $mode="":
+    #!/usr/bin/bash
+    set -euo pipefail
+    echo "Checking syntax: Justfile"
+    just --unstable --fmt {{ mode }} -f Justfile
+    while IFS= read -r -d '' file; do
+        echo "Checking syntax: ${file}"
+        just --unstable --fmt {{ mode }} -f "${file}"
+    done < <(find . -type f -name '*.just' -print0)
+
 # Check Just Syntax
 [group('Just')]
 check:
-    #!/usr/bin/bash
-    find . -type f -name "*.just" | while read -r file; do
-    	echo "Checking syntax: $file"
-    	just --unstable --fmt --check -f $file
-    done
-    echo "Checking syntax: Justfile"
-    just --unstable --fmt --check -f Justfile
+    just _format-justfiles "--check"
 
 # Run unit tests for build scripts
 [group('Just')]
@@ -33,7 +40,8 @@ test-unit:
         exit 1
     fi
     echo "Running unit tests..."
-    bats tests/unit/
+    # This recipe is the single definition of how the suite runs; CI calls it.
+    bats --print-output-on-failure tests/unit/
 
 # Validate Brewfiles without evaluating them as Ruby (see #288)
 [group('Just')]
@@ -52,13 +60,7 @@ validate-flatpaks:
 # Fix Just Syntax
 [group('Just')]
 fix:
-    #!/usr/bin/bash
-    find . -type f -name "*.just" | while read -r file; do
-    	echo "Checking syntax: $file"
-    	just --unstable --fmt -f $file
-    done
-    echo "Checking syntax: Justfile"
-    just --unstable --fmt -f Justfile || { exit 1; }
+    just _format-justfiles
 
 # Clean Repo
 [group('Utility')]
@@ -66,9 +68,6 @@ clean:
     #!/usr/bin/bash
     set -eoux pipefail
     find . -maxdepth 1 -name '*_build*' -prune -exec rm -rf {} +
-    rm -f previous.manifest.json
-    rm -f changelog.md
-    rm -f output.env
     rm -rf output/
 
 # Sudo Clean Repo
@@ -95,25 +94,21 @@ sudoif command *args:
     }
     sudoif {{ command }} {{ args }}
 
-# This Justfile recipe builds a container image using Podman.
+# Build the container image with Podman.
 #
 # Arguments:
-#   $target_image - The tag you want to apply to the image (default: $IMAGE_NAME).
-#   $tag - The tag for the image (default: $DEFAULT_TAG).
+#   $target_image - the image to build (default: $IMAGE_NAME)
+#   $tag          - the image tag (default: $DEFAULT_TAG)
 #
-# The script constructs the version string using the Fedora major version, tag,
-# and the current date. If the git working directory is clean, it also includes
-# the short SHA of the current HEAD.
+# The version string is <fedora-major>.<date> for a tag containing "stable" and
+# <tag>-<fedora-major>.<date> otherwise. The Fedora major comes from the
+# Containerfile, a point release is appended when the registry already has that
+# version, and a clean worktree also stamps the short HEAD SHA.
 #
-# just build $target_image $tag
-#
-# Example usage:
-#   just build aurora lts
-#
-# This will build an image 'aurora:lts' with DX and GDX enabled.
-#
+# Example: just build finpilot stable-testing
 
 # Build the image using the specified parameters
+[group('Image')]
 build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     #!/usr/bin/env bash
 
@@ -124,6 +119,10 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
         echo "ERROR: Could not extract FEDORA_MAJOR_VERSION from Containerfile"
         exit 1
     fi
+
+    # Image identity, resolved once: an explicit IMAGE_VENDOR wins, otherwise
+    # fall back to the repository owner GitHub Actions supplies.
+    image_vendor="${IMAGE_VENDOR:-${REPO_ORG}}"
 
     # Bluefin-style version string: <fedora-version>.<date> for stable,
     # <tag>-<fedora-version>.<date> for everything else.
@@ -137,7 +136,7 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     if command -v skopeo &>/dev/null; then
         repotags=$(mktemp -t repotags.XXXXXXXX.json) || { echo "ERROR: mktemp failed to create tag-list temp file"; exit 1; }
         trap 'rm -f "${repotags}"' EXIT
-        skopeo list-tags "docker://ghcr.io/${IMAGE_VENDOR:-${REPO_ORG}}/${target_image}" >"${repotags}" 2>/dev/null \
+        skopeo list-tags "docker://ghcr.io/${image_vendor}/${target_image}" >"${repotags}" 2>/dev/null \
             || echo '{"Tags":[]}' >"${repotags}"
         if [[ $(jq "any(.Tags[]; contains(\"${ver}\"))" "${repotags}") == "true" ]]; then
             POINT=1
@@ -157,7 +156,6 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
 
     # Image identity ARGs - these define how bootc/ublue ecosystem recognizes the image.
     # Override via env vars: IMAGE_NAME, IMAGE_VENDOR, UBLUE_IMAGE_TAG
-    image_vendor="${IMAGE_VENDOR:-${REPO_ORG}}"
     BUILD_ARGS+=("--build-arg" "IMAGE_NAME=${target_image}")
     BUILD_ARGS+=("--build-arg" "IMAGE_VENDOR=${image_vendor}")
     BUILD_ARGS+=("--build-arg" "UBLUE_IMAGE_TAG=${UBLUE_IMAGE_TAG:-${tag}}")
@@ -178,10 +176,10 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     fi
 
     # Registry layer cache - speeds up rebuilds by reusing unchanged layers from GHCR
-    # Cache write (REGISTRY_CACHE_WRITE=1) is set by CI for non-PR builds only
-    # PR builds and local builds are read-only to prevent cache poisoning
+    # CI sets REGISTRY_CACHE_WRITE=1 for candidate builds; local builds stay
+    # read-only so a developer never poisons the shared cache
     CACHE_ARGS=()
-    cache_ref="ghcr.io/${IMAGE_VENDOR:-${REPO_ORG}}/${target_image}"
+    cache_ref="ghcr.io/${image_vendor}/${target_image}"
     if skopeo list-tags "docker://${cache_ref}" >/dev/null 2>&1; then
         CACHE_ARGS+=("--cache-from" "${cache_ref}")
         if [[ "${REGISTRY_CACHE_WRITE:-0}" == "1" ]]; then
@@ -220,22 +218,9 @@ tag-images $image_name="" $default_tag="" $tags="":
 
     echo "Tagged ${image_name} with: ${tags}"
 
-# Command: _rootful_load_image
-# Description: This script checks if the current user is root or running under sudo. If not, it attempts to resolve the image tag using podman inspect.
-#              If the image is found, it loads it into rootful podman. If the image is not found, it pulls it from the repository.
-#
-# Parameters:
-#   $target_image - The name of the target image to be loaded or pulled.
-#   $tag - The tag of the target image to be loaded or pulled. Default is 'default_tag'.
-#
-# Example usage:
-#   _rootful_load_image my_image latest
-#
-# Steps:
-# 1. Check if the script is already running as root or under sudo.
-# 2. Check if target image is in the non-root podman container storage)
-# 3. If the image is found, load it into rootful podman using podman scp.
-# 4. If the image is not found, pull it from the remote repository into reootful podman.
+# Make the locally built image visible to rootful podman so Bootc Image Builder
+# can read it, copying it across with `podman image scp`. Falls back to pulling
+# it from the registry when it only exists there, and no-ops when already root.
 
 _rootful_load_image $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     #!/usr/bin/bash
@@ -269,15 +254,9 @@ _rootful_load_image $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
         just sudoif podman pull "${target_image}:${tag}"
     fi
 
-# Build a bootc bootable image using Bootc Image Builder (BIB)
-# Converts a container image to a bootable image
-# Parameters:
-#   target_image: The name of the image to build (ex. localhost/fedora)
-#   tag: The tag of the image to build (ex. latest)
-#   type: The type of image to build (ex. qcow2, raw, iso)
-#   config: The configuration file to use for the build (default: iso/disk.toml)
-
-# Example: just _rebuild-bib localhost/fedora latest qcow2 iso/disk.toml
+# Convert a container image into a bootable disk with Bootc Image Builder.
+# type is qcow2, raw or iso; config is the BIB config file to use
+# (iso/disk.toml for qcow2 and raw, iso/iso.toml for iso).
 _build-bib $target_image $tag $type $config: (_rootful_load_image target_image tag)
     #!/usr/bin/env bash
     set -euo pipefail
@@ -307,14 +286,7 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
     sudo rmdir $BUILDTMP
     sudo chown -R $USER:$USER output/
 
-# Podman builds the image from the Containerfile and creates a bootable image
-# Parameters:
-#   target_image: The name of the image to build (ex. localhost/fedora)
-#   tag: The tag of the image to build (ex. latest)
-#   type: The type of image to build (ex. qcow2, raw, iso)
-#   config: The configuration file to use for the build (default: iso/disk.toml)
-
-# Example: just _rebuild-bib localhost/fedora latest qcow2 iso/disk.toml
+# Rebuild the container image first, then convert it (see _build-bib).
 _rebuild-bib $target_image $tag $type $config: (build target_image tag) && (_build-bib target_image tag type config)
 
 # Build a QCOW2 virtual machine image
@@ -402,7 +374,10 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
 
     set -euo pipefail
 
-    [ "{{ rebuild }}" -eq 1 ] && echo "Rebuilding the ISO" && just build-vm {{ rebuild }} {{ type }}
+    if [[ "{{ rebuild }}" -eq 1 ]]; then
+        echo "Rebuilding the {{ type }} image"
+        just "build-{{ type }}"
+    fi
 
     systemd-vmspawn \
       -M "bootc-image" \
@@ -413,24 +388,16 @@ spawn-vm rebuild="0" type="qcow2" ram="6G":
       --vsock=false --pass-ssh-key=false \
       -i ./output/**/*.{{ type }}
 
-# Expand .shellcheck-scope into the list of shell scripts under lint
+# The repository's shell scripts: the *.sh files git tracks. Single definition
+# of the lint and format scope, and of the glob CI hands to validate-pr.
 [private]
 shell-sources:
     #!/usr/bin/env bash
     set -euo pipefail
-    shopt -s globstar nullglob
-    [[ -f .shellcheck-scope ]] || { echo ".shellcheck-scope is missing" >&2; exit 1; }
-    while IFS= read -r pattern || [[ -n "$pattern" ]]; do
-        pattern="${pattern%%#*}"
-        pattern="${pattern#"${pattern%%[![:space:]]*}"}"
-        pattern="${pattern%"${pattern##*[![:space:]]}"}"
-        [[ -z "$pattern" ]] && continue
-        for f in $pattern; do
-            [[ -f "$f" ]] && printf '%s\n' "$f"
-        done
-    done < .shellcheck-scope
+    git ls-files '*.sh'
 
-# Runs shell check on the scripts declared in .shellcheck-scope
+# Runs shell check on the shell scripts git tracks
+[group('Just')]
 lint:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -439,25 +406,33 @@ lint:
         echo "shellcheck could not be found. Please install it."
         exit 1
     fi
-    # .shellcheck-scope is the single source of truth for lint scope; CI reads
-    # the same file into validate-pr's shellcheck-glob input (see #324).
+    # git is the single source of truth for lint scope; CI resolves the same
+    # list into validate-pr's shellcheck-glob input.
     mapfile -t sources < <(just shell-sources)
     if [[ ${#sources[@]} -eq 0 ]]; then
-        echo "No shell scripts matched .shellcheck-scope" >&2
+        echo "No shell scripts found: git tracks no *.sh files" >&2
         exit 1
     fi
     printf 'Shellchecking %s scripts:\n' "${#sources[@]}"
     printf '  %s\n' "${sources[@]}"
     shellcheck "${sources[@]}"
 
-# Runs shfmt on all Bash scripts
+# Runs shfmt on the shell scripts git tracks
+[group('Just')]
 format:
     #!/usr/bin/env bash
-    set -eoux pipefail
+    set -euo pipefail
     # Check if shfmt is installed
     if ! command -v shfmt &> /dev/null; then
         echo "shfmt could not be found. Please install it."
         exit 1
     fi
-    # Run shfmt on all Bash scripts
-    /usr/bin/find . -iname "*.sh" -type f -exec shfmt --write "{}" ';'
+    # Format exactly the files lint checks.
+    mapfile -t sources < <(just shell-sources)
+    if [[ ${#sources[@]} -eq 0 ]]; then
+        echo "No shell scripts found: git tracks no *.sh files" >&2
+        exit 1
+    fi
+    printf 'Formatting %s scripts:\n' "${#sources[@]}"
+    printf '  %s\n' "${sources[@]}"
+    shfmt --write "${sources[@]}"

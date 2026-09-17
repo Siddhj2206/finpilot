@@ -73,19 +73,6 @@ run_recipe_without_sudo() {
 	[ -f "${SANDBOX}/keepdir/inner_build.log" ]
 }
 
-@test "clean: removes the four named build artifacts" {
-	touch "${SANDBOX}/previous.manifest.json" \
-		"${SANDBOX}/changelog.md" \
-		"${SANDBOX}/output.env"
-
-	run_recipe clean
-	[ "$status" -eq 0 ]
-
-	[ ! -e "${SANDBOX}/previous.manifest.json" ]
-	[ ! -e "${SANDBOX}/changelog.md" ]
-	[ ! -e "${SANDBOX}/output.env" ]
-}
-
 @test "clean: removes output/ and everything under it" {
 	mkdir -p "${SANDBOX}/output/qcow2"
 	touch "${SANDBOX}/output/qcow2/disk.qcow2" "${SANDBOX}/output/manifest"
@@ -101,9 +88,7 @@ run_recipe_without_sudo() {
 	touch "${SANDBOX}/build/20-packages-and-services.sh" \
 		"${SANDBOX}/custom/keep" \
 		"${SANDBOX}/Containerfile" \
-		"${SANDBOX}/README.md" \
-		"${SANDBOX}/changelog.md.bak" \
-		"${SANDBOX}/output.env.example"
+		"${SANDBOX}/README.md"
 
 	run_recipe clean
 	[ "$status" -eq 0 ]
@@ -112,16 +97,15 @@ run_recipe_without_sudo() {
 	[ -f "${SANDBOX}/custom/keep" ]
 	[ -f "${SANDBOX}/Containerfile" ]
 	[ -f "${SANDBOX}/README.md" ]
-	[ -f "${SANDBOX}/changelog.md.bak" ]
-	[ -f "${SANDBOX}/output.env.example" ]
 	[ -f "${SANDBOX}/Justfile" ]
 }
 
 @test "clean: succeeds on an already-clean tree and is repeatable" {
-	touch "${SANDBOX}/output.env"
+	mkdir -p "${SANDBOX}/finpilot_build"
 
 	run_recipe clean
 	[ "$status" -eq 0 ]
+	[ ! -e "${SANDBOX}/finpilot_build" ]
 
 	run_recipe clean
 	[ "$status" -eq 0 ]
@@ -156,15 +140,16 @@ run_recipe_without_sudo() {
 		skip "root takes the direct-exec branch; this asserts the unprivileged path"
 	fi
 
-	touch "${SANDBOX}/output.env" "${SANDBOX}/changelog.md"
+	mkdir -p "${SANDBOX}/finpilot_build" "${SANDBOX}/output"
+	touch "${SANDBOX}/finpilot_build/blob" "${SANDBOX}/output/manifest"
 
 	run_recipe_without_sudo sudo-clean
 	[ "$status" -ne 0 ]
 
 	# The whole point of sudo-clean is that the removals happen as root; if
 	# escalation is impossible nothing may be deleted as the calling user.
-	[ -f "${SANDBOX}/output.env" ]
-	[ -f "${SANDBOX}/changelog.md" ]
+	[ -d "${SANDBOX}/finpilot_build" ]
+	[ -d "${SANDBOX}/output" ]
 }
 
 @test "sudoif: reports the failure through just rather than exiting silently" {
