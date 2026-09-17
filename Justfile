@@ -2,7 +2,7 @@ export IMAGE_NAME := env("IMAGE_NAME", "finpilot")
 export DEFAULT_TAG := env("DEFAULT_TAG", "stable")
 export PODMAN := env("PODMAN", "podman")
 export REPO_ORG := env("GITHUB_REPOSITORY_OWNER", "projectbluefin")
-export bib_image := env("BIB_IMAGE", "quay.io/centos-bootc/bootc-image-builder:latest@sha256:2b52843ea2bfda73b0a08d97e76b734393b1d3a804681b9fabb26723bd3a2f0b")
+export bib_image := env("BIB_IMAGE", "ghcr.io/osbuild/bootc-image-builder:latest@sha256:38bfc5efa52c5f24a7953f3e58a9f560a65572fbce40d2fdc2136e0d2a45bd98")
 
 alias build-vm := build-qcow2
 alias rebuild-vm := rebuild-qcow2
@@ -265,6 +265,20 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
     args+="--use-librepo=True "
     args+="--rootfs=btrfs"
 
+    # Bootc Image Builder records the post-install `bootc switch` origin from
+    # the image reference it is given, so an ISO has to be built against the
+    # published reference instead of the local build tag. The image names
+    # itself in image-info.json, which keeps one source of truth for forks and
+    # means iso/iso.toml carries no image reference at all.
+    build_image="${target_image}:${tag}"
+    if [[ "${type}" == "iso" ]]; then
+        image_info=$(just sudoif podman run --rm --entrypoint /usr/bin/cat \
+            "${target_image}:${tag}" /usr/share/ublue-os/image-info.json)
+        image_ref=$(jq -r '."image-ref"' <<<"${image_info}" | sed 's|.*docker://||')
+        build_image="${image_ref}:$(jq -r '."image-tag"' <<<"${image_info}")"
+        just sudoif podman tag "${target_image}:${tag}" "${build_image}"
+    fi
+
     BUILDTMP=$(mktemp -p "${PWD}" -d -t _build-bib.XXXXXXXXXX)
 
     sudo podman run \
@@ -279,7 +293,7 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
       -v /var/lib/containers/storage:/var/lib/containers/storage \
       "${bib_image}" \
       ${args} \
-      "${target_image}:${tag}"
+      "${build_image}"
 
     mkdir -p output
     sudo mv -f $BUILDTMP/* output/

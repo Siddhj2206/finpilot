@@ -1,18 +1,12 @@
 # Anaconda ISO Installer Configuration
 # This configuration creates a bootable ISO image for installing your custom bootc image.
 #
-# The installer will guide users through disk partitioning and basic system setup,
-# then automatically switch to your custom image on first boot.
-
-[customizations.installer.kickstart]
-contents = """
-%post
-# After installation, switch to the custom image from this repository.
-# This ref must match the package build-image.yml publishes, which is
-# ghcr.io/<repository_owner>/<repository_name>.
-bootc switch --mutate-in-place --transport registry ghcr.io/siddhj2206/finpilot:stable
-%end
-"""
+# The installer will guide users through disk partitioning and basic system setup.
+#
+# There is deliberately no image reference in this file. The installer embeds
+# the image and records its bootc origin from the reference the ISO is built
+# against; the Justfile _build-bib recipe reads that reference from the image's
+# own image-info.json, so a fork never has to edit this file.
 
 [customizations.installer.modules]
 # Enable standard Anaconda installer modules for a guided installation experience
