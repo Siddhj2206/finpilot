@@ -7,6 +7,9 @@ on:
       - "build/**"
       - "tests/**"
       - "Justfile"
+      # The release-trigger test reads this pattern out of the workflow, so a
+      # change to the trigger must run the suite that guards it.
+      - ".github/workflows/execute-release.yml"
       - ".github/workflows/unit-tests.yml"
   push:
     branches: [main, stable]
@@ -14,6 +17,7 @@ on:
       - "build/**"
       - "tests/**"
       - "Justfile"
+      - ".github/workflows/execute-release.yml"
       - ".github/workflows/unit-tests.yml"
   merge_group:
 
