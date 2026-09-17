@@ -97,9 +97,10 @@ if [[ -f "${OS_RELEASE}" ]]; then
     set_os_release_value "IMAGE_ID" "${IMAGE_NAME}"
     set_os_release_value "IMAGE_VERSION" "${VERSION}"
 
-    if [[ -n "${SHA_HEAD_SHORT:-}" ]]; then
-        set_os_release_value "BUILD_ID" "${SHA_HEAD_SHORT}"
-    fi
+    # The build commit is deliberately not written here. SHA_HEAD_SHORT is
+    # declared late in the Containerfile so a new commit only invalidates the
+    # label layer, and this phase runs first, so the value is not available.
+    # The commit ships as org.opencontainers.image.revision instead.
 fi
 
 printf 'Wrote %s\n' "${IMAGE_INFO}"

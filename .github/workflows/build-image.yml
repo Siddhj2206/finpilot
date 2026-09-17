@@ -8,13 +8,10 @@ name: Build and Push Image
 # promote-main-to-stable.yml opens the scheduled/manual main -> stable promotion
 # PR. execute-release.yml runs the release gate and promotes the candidate.
 #
-# PR builds are disabled by default to save CI minutes. To enable them, add:
-#   pull_request:
-#     branches:
-#       - main
-#     paths-ignore:
-#       - "**.md"
-#       - ".github/workflows/*validate*.yml"
+# Builds run on push to main only; PR builds are disabled. A change to a
+# workflow the build depends on — build-image, promote, unit tests — still
+# builds, so a break in it is caught. The four validate workflows are PR
+# linting only and never affect the image.
 on:
   push:
     branches:
@@ -39,7 +36,7 @@ env:
   IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
   DEFAULT_TAG: "stable"
   PRODUCTION_BRANCH: "stable" # The branch that publishes :stable production images
-  REGISTRY_CACHE_WRITE: ${{ github.event_name != 'pull_request' && '1' || '0' }}
+  REGISTRY_CACHE_WRITE: "1" # CI always writes the layer cache; local builds stay read-only
   ENABLE_RECHUNKING: "false"
   RECHUNK_MAX_LAYERS: "128"
 
@@ -114,19 +111,7 @@ jobs:
           cache-name: ${{ env.IMAGE_NAME }}
           cache-bust: ${{ hashFiles('**/Containerfile') }}
 
-      - name: Detect changes
-        id: detect-changes
-        uses: projectbluefin/actions/bootc-build/detect-changes@4d3b97eb9760539d2b4a8f2a495db0ec3bf9e8a0 # v1
-        with:
-          filters: |
-            image:
-              - 'Containerfile'
-              - 'build/**'
-              - 'custom/**'
-              - 'Justfile'
-
       - name: Build image
-        if: steps.detect-changes.outputs.should_build == 'true' || github.event_name != 'pull_request'
         id: build-image
         uses: nick-fields/retry@ad984534de44a9489a53aefd81eb77f87c70dc60 # v4
         env:
@@ -134,7 +119,6 @@ jobs:
           IMAGE_NAME: ${{ env.IMAGE_NAME }}
           IMAGE_VENDOR: ${{ env.IMAGE_VENDOR }}
           DEFAULT_TAG: ${{ env.DEFAULT_TAG }}
-          REGISTRY_CACHE_WRITE: ${{ env.REGISTRY_CACHE_WRITE }}
         with:
           timeout_minutes: 120
           max_attempts: 3
@@ -143,7 +127,6 @@ jobs:
             sudo -E "$(command -v just)" build "${IMAGE_NAME}" "${DEFAULT_TAG}"
 
       - name: Get version label
-        if: steps.detect-changes.outputs.should_build == 'true' || github.event_name != 'pull_request'
         id: version
         shell: bash
         env:
@@ -156,7 +139,6 @@ jobs:
           echo "Version: ${VERSION_LABEL}"
 
       - name: Generate tags
-        if: steps.detect-changes.outputs.should_build == 'true' || github.event_name != 'pull_request'
         id: generate-tags
         uses: projectbluefin/actions/bootc-build/generate-tags@4d3b97eb9760539d2b4a8f2a495db0ec3bf9e8a0 # v1
         with:
@@ -164,7 +146,6 @@ jobs:
           stream-name: ${{ env.TAG_STREAM }}
           version-label: ${{ steps.version.outputs.version }}
           event-name: ${{ github.event_name }}
-          pr-number: ${{ github.event.number }}
 
       # generate-tags emits stream-native tags (testing* or stable-daily* plus
       # version aliases). For testing builds this renames testing* tags to
@@ -173,7 +154,6 @@ jobs:
       # guarantees the mutable consumer tag (:stable / :stable-testing) is
       # always published.
       - name: Finalize branch tags
-        if: steps.detect-changes.outputs.should_build == 'true' || github.event_name != 'pull_request'
         id: branch-tags
         shell: bash
         env:
@@ -206,18 +186,18 @@ jobs:
           echo "default-tag=${DEFAULT_TAG}" >> "${GITHUB_OUTPUT}"
 
       - name: Save DNF cache
-        if: always() && !cancelled() && github.event_name != 'pull_request'
-        uses: projectbluefin/actions/bootc-build/dnf-cache@4d3b97eb9760539d2b4a8f2a495db0ec3bf9e8a0 # v1
+        if: always() && !cancelled()
+        uses: projectbluefin/actions/bootc-build/dnf-cache@b0fbcf6ca95dace8e3b4ae1860ccbbc3bbab1a53 # v1
         with:
           action: save
           cache-name: ${{ env.IMAGE_NAME }}
-          allow-write: ${{ github.event_name != 'pull_request' && 'true' || 'false' }}
+          allow-write: "true"
           cache-bust: ${{ hashFiles('**/Containerfile') }}
 
       # OPTIONAL: Set ENABLE_RECHUNKING to "true" above to optimize OTA deltas.
       # This uses OCI-native chunkah and does not require bootc-base-imagectl.
       - name: Rechunk image
-        if: env.ENABLE_RECHUNKING == 'true' && github.event_name != 'pull_request'
+        if: env.ENABLE_RECHUNKING == 'true'
         id: rechunk-image
         uses: projectbluefin/actions/bootc-build/chunka@4d3b97eb9760539d2b4a8f2a495db0ec3bf9e8a0 # v1
         with:
@@ -225,7 +205,6 @@ jobs:
           max-layers: ${{ env.RECHUNK_MAX_LAYERS }}
 
       - name: Tag images
-        if: github.event_name != 'pull_request'
         shell: bash
         env:
           ALIAS_TAGS: ${{ steps.branch-tags.outputs.tags }}
@@ -234,13 +213,12 @@ jobs:
                           "${DEFAULT_TAG}" \
                           "${ALIAS_TAGS}"
 
-      # Candidate builds from main publish tags; PR builds only build and
-      # validate, and never publish. execute-release.yml promotes the signed,
-      # gated candidate digest to :stable without a stable-branch rebuild. The
-      # upstream push-image action owns all registry authentication and pushing.
+      # Every build here is a candidate build from main and publishes tags.
+      # execute-release.yml promotes the signed, gated candidate digest to
+      # :stable without a stable-branch rebuild, so the upstream push-image
+      # action owns all registry authentication and pushing.
 
       - name: Push to GHCR
-        if: github.event_name != 'pull_request'
         id: push
         uses: projectbluefin/actions/bootc-build/push-image@4d3b97eb9760539d2b4a8f2a495db0ec3bf9e8a0 # v1
         with:
@@ -256,7 +234,6 @@ jobs:
       # gate rejects an unsigned candidate and preserves the prior :stable.
 
       - name: Sign and publish
-        if: github.event_name != 'pull_request'
         continue-on-error: true
         uses: projectbluefin/actions/bootc-build/sign-and-publish@4d3b97eb9760539d2b4a8f2a495db0ec3bf9e8a0 # v1
         with:
@@ -269,7 +246,6 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build telemetry summary
-        if: steps.detect-changes.outputs.should_build == 'true' || github.event_name != 'pull_request'
         shell: bash
         run: |
           IMAGE_SIZE=$(sudo podman image inspect "localhost/${{ env.IMAGE_NAME }}:${{ env.DEFAULT_TAG }}" \

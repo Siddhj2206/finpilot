@@ -98,7 +98,7 @@ run_recipe_without_sudo() {
 
 @test "clean: leaves unrelated top-level files and directories alone" {
 	mkdir -p "${SANDBOX}/build" "${SANDBOX}/custom"
-	touch "${SANDBOX}/build/10-build.sh" \
+	touch "${SANDBOX}/build/20-packages-and-services.sh" \
 		"${SANDBOX}/custom/keep" \
 		"${SANDBOX}/Containerfile" \
 		"${SANDBOX}/README.md" \
@@ -108,7 +108,7 @@ run_recipe_without_sudo() {
 	run_recipe clean
 	[ "$status" -eq 0 ]
 
-	[ -f "${SANDBOX}/build/10-build.sh" ]
+	[ -f "${SANDBOX}/build/20-packages-and-services.sh" ]
 	[ -f "${SANDBOX}/custom/keep" ]
 	[ -f "${SANDBOX}/Containerfile" ]
 	[ -f "${SANDBOX}/README.md" ]

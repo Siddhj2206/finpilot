@@ -4,7 +4,7 @@
 # The script overlays the Common/Brew OCI payloads and writes the template's
 # custom declarations under /usr/share and /etc/skel, so each test rewrites a
 # throwaway copy to point at a sandbox root and stubs the binaries it shells
-# out to (rsync, systemctl). Production behaviour is never modified; the
+# out to (rsync, systemctl, curl). Production behaviour is never modified; the
 # rewrite is asserted below so the suite fails loudly if the paths in the
 # script ever drift.
 #
@@ -23,6 +23,7 @@ setup() {
 
 	RSYNC_LOG="${TEST_ROOT}/logs/rsync.log"
 	SYSTEMCTL_LOG="${TEST_ROOT}/logs/systemctl.log"
+	CURL_LOG="${TEST_ROOT}/logs/curl.log"
 
 	HOMEBREW_DIR="${SANDBOX}/usr/share/ublue-os/homebrew"
 	JUST_DIR="${SANDBOX}/usr/share/ublue-os/just"
@@ -45,12 +46,13 @@ setup() {
 		-e "s#/ctx/#${CTX}/#g" \
 		-e "s#/usr/share/#${SANDBOX}/usr/share/#g" \
 		-e "s#/etc/skel#${SANDBOX}/etc/skel#g" \
+		-e "s#/etc/flatpak#${SANDBOX}/etc/flatpak#g" \
 		"${OVERLAY_SRC}" >"${SCRIPT}"
 
 	export PATH="${STUB_BIN}:${PATH}"
-	export RSYNC_LOG SYSTEMCTL_LOG
+	export RSYNC_LOG SYSTEMCTL_LOG CURL_LOG
 
-	for tool in rsync systemctl; do
+	for tool in rsync systemctl curl; do
 		local log_var
 		log_var="$(printf '%s' "${tool}" | tr '[:lower:]' '[:upper:]')_LOG"
 		cat >"${STUB_BIN}/${tool}" <<EOF
@@ -85,18 +87,41 @@ teardown() {
 	[[ "$output" == *"::group:: Overlay shared Common runtime files"* ]]
 	[[ "$output" == *"::group:: Overlay Brew integration files"* ]]
 	[[ "$output" == *"::group:: Copy template custom declarations"* ]]
+	[[ "$output" == *"::group:: Add the Flathub remote descriptor"* ]]
 	[[ "$output" == *"::group:: Enable runtime services"* ]]
 	[[ "$output" == *"::endgroup::"* ]]
 }
 
-@test "10-overlay: overlays common/shared then brew, never bluefin or nvidia" {
+@test "10-overlay: overlays the inherited layers first, then the template seams" {
+	mkdir -p "${CTX}/custom/config"
+	printf '[settings]\n' >"${CTX}/custom/config/example.conf"
+
 	run bash "${SCRIPT}"
 	[ "$status" -eq 0 ]
 
 	mapfile -t calls <"${RSYNC_LOG}"
-	[ "${#calls[@]}" -eq 2 ]
+	# Order is the contract: every step writes over the one above it, so the
+	# template's own seams deliberately win over the inherited payloads.
 	[ "${calls[0]}" = "-rvK ${CTX}/oci/common/shared/ /" ]
 	[ "${calls[1]}" = "-rvK ${CTX}/oci/brew/ /" ]
+	[[ "${calls[2]}" == *"${CTX}/custom/files/ /"* ]]
+	[[ "${calls[3]}" == *"${CTX}/custom/config/ ${SANDBOX}/etc/skel/.config/"* ]]
+
+	# bluefin/ is product opinion and nvidia/ is a paired hardware feature, so
+	# neither is ever overlaid.
+	! grep -q 'common/bluefin' "${RSYNC_LOG}"
+	! grep -q 'nvidia' "${RSYNC_LOG}"
+}
+
+@test "10-overlay: custom/files mirrors the image root and drops its own README" {
+	run bash "${SCRIPT}"
+	[ "$status" -eq 0 ]
+
+	mapfile -t calls <"${RSYNC_LOG}"
+	# The override seam copies to the image root, so a payload can replace
+	# anything the inherited layers wrote. Its own README must not ship.
+	[[ "${calls[2]}" == *"${CTX}/custom/files/ /"* ]]
+	[[ "${calls[2]}" == *"--exclude=/README.md"* ]]
 }
 
 @test "10-overlay: copies every Brewfile into the ublue-os homebrew dir" {
@@ -166,15 +191,21 @@ teardown() {
 	grep -q 'org.mozilla.firefox' "${PREINSTALL_DIR}/default.preinstall"
 }
 
-@test "10-overlay: seeds /etc/skel from custom/config when present" {
+@test "10-overlay: seeds /etc/skel/.config from custom/config when present" {
 	mkdir -p "${CTX}/custom/config"
 	printf '[settings]\n' >"${CTX}/custom/config/example.conf"
+	printf '# seam docs\n' >"${CTX}/custom/config/README.md"
 
 	run bash "${SCRIPT}"
 	[ "$status" -eq 0 ]
 
-	[ -f "${SANDBOX}/etc/skel/example.conf" ]
-	grep -q '\[settings\]' "${SANDBOX}/etc/skel/example.conf"
+	# rsync is stubbed, so the copy is asserted from the log. Per-user defaults
+	# land under .config rather than directly in the home skeleton, and the
+	# seam's own README documents the seam instead of shipping into every new
+	# user's home.
+	mapfile -t calls <"${RSYNC_LOG}"
+	[[ "${calls[3]}" == *"${CTX}/custom/config/ ${SANDBOX}/etc/skel/.config/"* ]]
+	[[ "${calls[3]}" == *"--exclude=/README.md"* ]]
 }
 
 @test "10-overlay: a missing custom/config directory is not an error" {
@@ -185,19 +216,34 @@ teardown() {
 	[ ! -d "${SANDBOX}/etc/skel" ]
 }
 
-@test "10-overlay: enables exactly the brew, flatpak and podman units" {
+@test "10-overlay: enables exactly the brew, flatpak, setup and podman units" {
 	run bash "${SCRIPT}"
 	[ "$status" -eq 0 ]
 
 	mapfile -t calls <"${SYSTEMCTL_LOG}"
-	[ "${#calls[@]}" -eq 7 ]
+	[ "${#calls[@]}" -eq 9 ]
 	[ "${calls[0]}" = "enable brew-setup.service" ]
 	[ "${calls[1]}" = "enable brew-update.timer" ]
 	[ "${calls[2]}" = "enable brew-upgrade.timer" ]
 	[ "${calls[3]}" = "--global enable brew-preinstall.service" ]
 	[ "${calls[4]}" = "enable flatpak-preinstall.service" ]
 	[ "${calls[5]}" = "enable flatpak-appstream-refresh.service" ]
-	[ "${calls[6]}" = "enable podman.socket" ]
+	[ "${calls[6]}" = "enable ublue-system-setup.service" ]
+	[ "${calls[7]}" = "--global enable ublue-user-setup.service" ]
+	[ "${calls[8]}" = "enable podman.socket" ]
+}
+
+@test "10-overlay: ships the Flathub remote descriptor" {
+	run bash "${SCRIPT}"
+	[ "$status" -eq 0 ]
+
+	# flatpak imports remotes from this directory the first time it is used, so
+	# the descriptor replaces both a unit and a build-time remote-add. It is
+	# fetched rather than committed so Flathub's signing key stays current.
+	mapfile -t calls <"${CURL_LOG}"
+	[ "${#calls[@]}" -eq 1 ]
+	[[ "${calls[0]}" == *"--output ${SANDBOX}/etc/flatpak/remotes.d/flathub.flatpakrepo"* ]]
+	[[ "${calls[0]}" == *"https://dl.flathub.org/repo/flathub.flatpakrepo"* ]]
 }
 
 @test "10-overlay: an empty brew dir fails the build despite nullglob (regression guard)" {
