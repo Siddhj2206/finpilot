@@ -27,17 +27,11 @@
   ],
   "packageRules": [
     {
-      "description": "Automerge safe low-risk updates (digest/pin only) when checks pass",
-      "matchUpdateTypes": ["digest", "pin", "pinDigest"],
+      "description": "Automerge everything short of a major when checks pass. PR checks are shellcheck + hadolint and PR builds are disabled, so this merges without an image build ever having run — the deliberate trade for zero dependency toil.",
+      "matchUpdateTypes": ["digest", "pin", "pinDigest", "patch", "minor"],
       "automerge": true,
       "automergeType": "pr",
       "automergeStrategy": "squash"
-    },
-    {
-      "description": "Keep the shared projectbluefin actions channel fresh (human review required — executable CI code)",
-      "matchPackageNames": ["projectbluefin/actions"],
-      "matchUpdateTypes": ["digest", "pinDigest", "pin", "patch", "minor"],
-      "automerge": false
     },
     {
       "description": "Keep first-party and base OCI images fresh immediately",
@@ -50,14 +44,8 @@
       "automerge": true
     },
     {
-      "description": "A base-image major crossing needs a human: open the PR, never automerge it",
-      "matchManagers": ["dockerfile"],
+      "description": "A major crossing always waits for a human — never automerge one. Last matching rule wins, so keep this rule last.",
       "matchUpdateTypes": ["major"],
-      "automerge": false
-    },
-    {
-      "description": "Require human review for GitHub Actions updates — automerged action SHA bumps would run unreviewed code in privileged workflows (packages:write, id-token:write, secrets:inherit). Last matching rule wins, so keep this rule last.",
-      "matchManagers": ["github-actions"],
       "automerge": false
     }
   ]
