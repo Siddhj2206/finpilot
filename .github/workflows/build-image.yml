@@ -31,9 +31,9 @@ env:
   IMAGE_NAME: "${{ github.event.repository.name }}"
   IMAGE_VENDOR: "${{ github.repository_owner }}"
   IMAGE_REGISTRY: "ghcr.io/${{ github.repository_owner }}"
-  IMAGE_DESC: "My Customized Universal Blue Image"
-  IMAGE_KEYWORDS: "bootc,ublue,universal-blue"
-  IMAGE_LOGO_URL: "https://avatars.githubusercontent.com/u/120078124?s=200&v=4"
+  # Image description, keywords and logo are the Containerfile's ARGs, so CI and
+  # local builds agree. Set IMAGE_DESC, IMAGE_KEYWORDS, IMAGE_LOGO_URL or
+  # IMAGE_REF here only to override the Containerfile deliberately.
   DEFAULT_TAG: "stable"
   PRODUCTION_BRANCH: "stable" # The branch that publishes :stable production images
   REGISTRY_CACHE_WRITE: "1" # CI always writes the layer cache; local builds stay read-only
