@@ -41,9 +41,9 @@ setup() {
 }
 
 @test "execute-release: rejects the subjects a promotion never produces" {
-	# PR #16 was merge-committed. That shape must not pass, and must fail
-	# loudly, because nothing was promoted.
-	! [[ "Merge pull request #16 from Siddhj2206/auto/promote-main-to-stable" =~ ${PATTERN} ]]
+	# A merge commit is not a promotion. That shape must not pass, and must
+	# fail loudly, because nothing was promoted.
+	! [[ "Merge pull request #16 from octocat/auto/promote-main-to-stable" =~ ${PATTERN} ]]
 	! [[ "ci: publish stable release notes" =~ ${PATTERN} ]]
 	! [[ "fix(release): hand-edit something on stable" =~ ${PATTERN} ]]
 }

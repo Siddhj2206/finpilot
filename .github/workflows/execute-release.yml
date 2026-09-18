@@ -42,7 +42,7 @@ jobs:
           # "ci(promote): <image> <source> → <target> <date>", is accepted too:
           # it becomes the subject if the branch ever carries more than one
           # commit or the setting changes to PR_TITLE. A merge commit produces
-          # neither, which is the shape #16 had.
+          # neither.
           if [[ "${COMMIT_MESSAGE}" =~ ^(ci[(]promote[)]:|chore:[[:space:]]+promote[[:space:]]) ]]; then
             echo "is-promotion=true" >> "${GITHUB_OUTPUT}"
           else
