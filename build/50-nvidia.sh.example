@@ -22,7 +22,7 @@ set -euo pipefail
 # prove it loads or that Wayland comes up. Check `nvidia-smi` on a real GPU.
 #
 # Bluefin adds Mutter's kms-modifiers for NVIDIA images in its image-info phase,
-# by amending the gschema override its Common layer ships. finpilot overlays
+# by amending the gschema override its Common layer ships. This template overlays
 # Common's shared layer only, so that override is not present here. Add the key
 # yourself if your hardware needs it.
 ###############################################################################

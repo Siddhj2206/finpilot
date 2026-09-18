@@ -55,9 +55,9 @@ jobs:
       use_merge_queue: false
       # Enrolling without a merge queue runs `gh pr merge --auto` with no merge
       # method, and GitHub CLI refuses that without a TTY ("--merge, --rebase,
-      # or --squash required when not running interactively"; observed on run
-      # 35105796232). The reusable exposes no merge-method input, so enrollment
-      # stays off and the promotion PR is merged by hand.
+      # or --squash required when not running interactively"). The reusable
+      # exposes no merge-method input, so enrollment stays off and the promotion
+      # PR is merged by hand.
       #
       # Merging by hand matters beyond the merge method. A merge performed as
       # github-actions creates no workflow runs — a push made with that token is

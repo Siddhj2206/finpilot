@@ -22,8 +22,8 @@ jobs:
         shell: bash
         run: |
           # Derive the cleanup target from the repository name (lowercased),
-          # exactly as build-image.yml derives the publish target — so a
-          # renamed fork cleans the package it actually pushes (see #291).
+          # exactly as build-image.yml derives the publish target, so a renamed
+          # fork cleans the package it actually pushes.
           name="${{ github.event.repository.name }}"
           echo "name=${name,,}" >> "${GITHUB_OUTPUT}"
 

@@ -37,7 +37,7 @@ jobs:
 
       # Static validation only: the recipe greps Brewfiles and passes names
       # to `brew info` as data. Never `brew bundle check` a PR-controlled
-      # Brewfile — it is a Ruby DSL and would execute in CI (see #288).
+      # Brewfile — it is a Ruby DSL and would execute in CI.
       - name: Validate Brewfiles
         shell: bash
         run: just validate-brewfiles

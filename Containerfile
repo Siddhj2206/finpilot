@@ -3,15 +3,14 @@
 ###############################################################################
 # Name: finpilot
 #
-# IMPORTANT: Change "finpilot" above to your desired project name.
-# This name is restated in several files that cannot read each other. The
-# authoritative name at publish time is the repository name: build-image.yml
+# The authoritative name at publish time is the repository name: build-image.yml
 # derives IMAGE_NAME from ${{ github.event.repository.name }} and pushes the
-# GHCR package under it. The value below is the fallback used by local
-# `just build` and by the image-identity metadata written into the image.
+# GHCR package under it. This value is the fallback for local `just build` and
+# the image identity metadata.
 #
-# When forking, update every site listed under "Rename the Project" in
-# README.md. Nothing validates that these agree — see issue #291.
+# Two other files carry the name as a literal: the Justfile's IMAGE_NAME default
+# and artifacthub-repo.yml's repositoryID. tests/contract/identity_test.bats
+# fails when the three disagree. See "Quick start" in README.md.
 ###############################################################################
 
 ###############################################################################
@@ -22,7 +21,7 @@
 #
 # 1. Context Stage (ctx) - Combines resources from:
 #    - Local build scripts and custom files
-#    - @projectbluefin/common - Desktop configuration shared with Aurora
+#    - @projectbluefin/common - The shared desktop configuration and plumbing
 #    - @ublue-os/brew - Homebrew integration
 #
 # 2. Base Image Options (edit the FROM line below):
@@ -68,8 +67,9 @@ ARG VERSION=""
 ##   - Local custom files from /custom
 ##   - Files from @projectbluefin/common at /oci/common (includes branding/artwork content)
 ##   - Files from @ublue-os/brew at /oci/brew
-## Scripts are run in numerical order: image identity, runtime overlays, default
-## packages and services, optional examples, then cleanup.
+## Scripts run in the order of the RUN blocks below: image identity, runtime
+## overlays, default packages and services, then cleanup. An activated example
+## gets its own block between the package phase and the cleanup phase.
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/boot \

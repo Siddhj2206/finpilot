@@ -72,7 +72,7 @@ _bats $dir:
     echo "Running ${#files[@]} test files..."
     bats --print-output-on-failure "${files[@]}"
 
-# Validate Brewfiles without evaluating them as Ruby (see #288)
+# Validate Brewfiles without evaluating them as Ruby.
 [group('Just')]
 validate-brewfiles:
     #!/usr/bin/bash
