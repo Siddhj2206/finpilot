@@ -78,8 +78,9 @@ _Last updated: [date]_
 ## Customize
 
 Pick your base image on the `Containerfile`'s `FROM` line; the template defaults
-to Fedora Silverblue. That line is the single source for the Fedora major, the
-base image name, and the digest — `just build` reads all three from it.
+to Fedora Silverblue. That line is the only place the base is chosen: `just build`
+reads the image name and the tag from it, and the Fedora major comes from the
+base image itself during the build.
 
 Then add to your image:
 

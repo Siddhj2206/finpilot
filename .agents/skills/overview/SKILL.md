@@ -24,9 +24,9 @@ defines three things:
      branding, and the Brew/Flatpak/ujust plumbing
    - `ghcr.io/ublue-os/brew` — the Homebrew integration
 
-2. **Base image** — the `FROM` line. It defaults to Fedora Silverblue, and it is
-   the single source for the Fedora major, the base image name, and the digest.
-   `just build` reads all three from that line.
+2. **Base image** — the `FROM` line. It defaults to Fedora Silverblue and is the
+   only place the base is chosen. `just build` reads the image name and tag from
+   it; the Fedora major is read from the base image itself during the build.
 
 3. **Phases** — each build script runs in its own `RUN` block, in the order the
    Containerfile names them. [build/README.md](../../../build/README.md) lists

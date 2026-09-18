@@ -3,12 +3,11 @@
 # nothing but this test keeps them in agreement. build-image.yml publishes under
 # the repository name; the sites below are the local fallbacks a fork edits by
 # hand, and a fork that renames only some of them ships an image that
-# misidentifies itself. See issue #291.
+# misidentifies itself.
 #
 # Only sites that restate the name literally are checked. build-image.yml and
 # clean.yml derive it from github.event.repository.name at runtime and cannot
-# drift. README.md and custom/ujust/README.md restate it in prose and are not
-# checked here.
+# drift. README.md restates it in prose and is not checked here.
 
 REPO_ROOT="$(cd "${BATS_TEST_DIRNAME}/../.." && pwd)"
 CONTAINERFILE="${REPO_ROOT}/Containerfile"

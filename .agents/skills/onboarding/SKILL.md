@@ -158,8 +158,9 @@ gh secret list --repo {owner}/{repo}
 ```
 
 Done when `main` and `stable` both exist and both require `validate`, the squash
-ruleset is active, `RENOVATE_TOKEN` is set, and a push to `main` produces a green
-`Build and Push Image` run and a `:stable-testing` image.
+ruleset is active, `RENOVATE_TOKEN` is set, and a push to `main` that changes
+more than documentation produces a green `Build and Push Image` run and a
+`:stable-testing` image. Documentation-only pushes are skipped by `paths-ignore`.
 
 ## Failure modes
 

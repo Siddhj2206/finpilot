@@ -18,8 +18,8 @@ structure, in order:
    are the local fallback and the image metadata.
 2. **Context stage** — `COPY build /build`, `COPY custom /custom`, then the two
    OCI images into `/oci/common` and `/oci/brew`.
-3. **Base** — the `FROM` line. The single source for the Fedora major, the base
-   image name, and the digest.
+3. **Base** — the `FROM` line. The only place the base is chosen; the Fedora
+   major, the image name, and the digest all follow from it.
 4. **Phases** — one `RUN` block per script, in the order they are named.
    [build/README.md](../../../build/README.md) lists them.
 5. **Metadata** — the `LABEL` block, fed by ARGs declared late so a new version
@@ -49,9 +49,11 @@ Every OCI reference is pinned by digest and updated by Renovate: the base image,
 `projectbluefin/common`, `ublue-os/brew`, `bootc-image-builder`, and the GitHub
 Actions. Do not hand-edit a digest; let Renovate propose it.
 
-The base image's `FROM` line is the only place the Fedora major is written. It
-is read at build time from the base's `os-release`, so it cannot desync from the
-tag the way a hand-maintained ARG could.
+The base image's `FROM` line is the only place the base is chosen, so the Fedora
+major cannot desync the way a hand-maintained `FEDORA_MAJOR_VERSION` ARG could.
+Two readers derive it from that base: `just build` parses the tag for the version
+string, and `00-image-info.sh` reads the base's `os-release` for the image
+metadata.
 
 ## Examples
 

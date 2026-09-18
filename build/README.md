@@ -26,7 +26,8 @@ Inactive until you activate them:
 - `60-desktop-swap.sh.example` — replacing the GNOME desktop
 
 To activate one, rename it off `.example` and add a `RUN` block to the
-Containerfile after the package phase and before the cleanup phase:
+Containerfile after the package phase and before the cleanup phase. Copy the
+shape below and substitute your script's path:
 
 ```dockerfile
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
@@ -34,7 +35,7 @@ RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=cache,dst=/var/cache/rpm-ostree \
     --mount=type=tmpfs,dst=/boot \
     --mount=type=tmpfs,dst=/tmp \
-    /ctx/build/50-nvidia.sh
+    /ctx/build/NN-example.sh
 ```
 
 Deactivating is the reverse: delete the block, rename the file back.

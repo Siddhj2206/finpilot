@@ -19,7 +19,8 @@ These hold for every change:
 ## Branches and releases
 
 `main` is the testing branch: pushes publish `:stable-testing`. `stable` is
-production: pushes publish `:stable`. Promotion is `main` → `stable` through the
+production, and it never rebuilds — `execute-release.yml` promotes the exact
+digest `main` already built. Promotion is `main` → `stable` through the
 auto-opened squash PR, and `stable` hotfixes sync back to `main`. `stable` takes
 no direct commits. The README owns the release table and the promotion gate's
 current limits.
