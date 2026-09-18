@@ -40,10 +40,11 @@ CI runs the same checks; running them locally only makes the pull request quiet.
 
 ## Runtime
 
+The two most common first-boot surprises — no Flatpaks, and no `brew` — are in
+the README's Troubleshooting section.
+
 | Symptom | Cause | Fix |
 |---|---|---|
-| no Flatpaks after first boot | `flatpak-preinstall.service` ran before the network was up, exited 0, and does not retry that boot | reboot while online |
-| no `brew` | `brew-setup.service` has not run | `systemctl status brew-setup.service`; it unpacks on first boot |
 | `ujust` shows no custom commands | `60-custom.just` was not written or imported | check that `10-overlay.sh` copied the recipes |
 
 ## Capturing what you learned

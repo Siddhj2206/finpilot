@@ -45,10 +45,9 @@ jobs:
       registry: ghcr.io/${{ github.repository_owner }}
       source_branch: main
       target_branch: stable
-      # A personal image runs no e2e suites. The gate verifies the candidate
-      # digest's cosign signature, and execute-release.yml re-verifies the same
-      # digest before promoting it, so "release/ready" means signed and
-      # unmodified, not functionally tested.
+      # A personal image runs no e2e suites. The gate still verifies the
+      # candidate digest's cosign signature, and execute-release.yml
+      # re-verifies the same digest before promoting it.
       run_e2e: false
       # The only path that auto-enrolls the PR is a merge queue, which needs an
       # organization-owned repository. Personal-account forks cannot use one.

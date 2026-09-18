@@ -28,26 +28,16 @@ Most are thin callers of reusable workflows in `projectbluefin/actions`.
 
 ## The release model
 
-`main` publishes `:stable-testing`; `stable` publishes `:stable`. Promotion is a
-squash PR from `main` to `stable`, and it promotes the digest `main` already
-built rather than rebuilding.
-
-The gate verifies the candidate digest's cosign signature. It runs no
-end-to-end tests, so `release/ready` means signed and unmodified, not
-functionally validated.
+`main` publishes `:stable-testing`. `stable` never rebuilds: promotion is a
+squash PR from `main` to `stable`, and `execute-release.yml` copies the exact
+digest `main` already built. The README owns the release table and the promotion
+gate's current limits.
 
 ## Signing
 
 Keyless OIDC via Cosign. There are no keys to generate or store; the workflow
 needs `id-token: write` and `packages: write`. Unsigned images fail the promotion
-gate.
-
-```bash
-cosign verify \
-  --certificate-identity-regexp="https://github.com/OWNER/REPO/.github/workflows/" \
-  --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
-  ghcr.io/OWNER/REPO:stable
-```
+gate. The README has the command to verify an image.
 
 ## Renovate
 
