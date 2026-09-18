@@ -1,16 +1,16 @@
 ---
 name: overview
 description: >-
-  Architecture, repository layout, and file map for the finpilot template.
+  Architecture, repository layout, and file map for this template.
   Use when orienting to the repository, tracing how the image is assembled,
   or deciding which skill covers a task.
 ---
 
 # Overview
 
-finpilot builds a bootc operating system image by assembling OCI layers rather
-than by modifying an existing image. Bluefin, Aurora, and Bluefin LTS are built
-the same way, so the desktop configuration here is the one they ship.
+This repository builds a bootc operating system image by assembling OCI layers
+rather than by modifying an existing image. Bluefin, Aurora, and Bluefin LTS are
+built the same way, so the desktop configuration here is the one they ship.
 
 ## How the image is assembled
 
