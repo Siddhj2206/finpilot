@@ -7,7 +7,7 @@
 # app-id is passed to `flatpak remote-info` as data; and an empty discovery
 # result fails closed instead of passing vacuously.
 #
-# Run with: bats tests/unit/validate-flatpaks_test.bats
+# Run with: bats tests/contract/validate-flatpaks_test.bats
 
 SCRIPT="${BATS_TEST_DIRNAME}/../../build/validate-flatpaks.sh"
 

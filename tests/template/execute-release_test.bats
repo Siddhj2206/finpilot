@@ -7,7 +7,7 @@
 # image and no release behind. The pattern is read out of the workflow rather
 # than duplicated here, so the two cannot drift apart unnoticed.
 #
-# Run with: bats tests/unit/execute-release_test.bats
+# Run with: bats tests/template/execute-release_test.bats
 
 SCRIPT_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")" && pwd)"
 WORKFLOW="${SCRIPT_DIR}/../../.github/workflows/execute-release.yml"

@@ -33,18 +33,44 @@ _format-justfiles $mode="":
 check:
     just _format-justfiles "--check"
 
-# Run unit tests for build scripts
+# Run the contract suite: interfaces the image must satisfy. A fork keeps these.
+[group('Just')]
+test-contract:
+    #!/usr/bin/bash
+    set -euo pipefail
+    just _bats tests/contract
+
+# Run the template suite: this repository's build wiring. A fork may delete this.
+[group('Just')]
+test-template:
+    #!/usr/bin/bash
+    set -euo pipefail
+    just _bats tests/template
+
+# Run every unit test (contract + template). CI calls this.
 [group('Just')]
 test-unit:
+    #!/usr/bin/bash
+    set -euo pipefail
+    just _bats tests
+
+# Single definition of how the suite runs: discover every *_test.bats under the
+# given directory, so a fork can add or remove files without editing this file.
+[private]
+_bats $dir:
     #!/usr/bin/bash
     set -euo pipefail
     if ! command -v bats &>/dev/null; then
         echo "bats not found — install with: sudo apt-get install bats  OR  npm install -g bats"
         exit 1
     fi
-    echo "Running unit tests..."
-    # This recipe is the single definition of how the suite runs; CI calls it.
-    bats --print-output-on-failure tests/unit/
+    mapfile -t files < <(find "{{ dir }}" -type f -name '*_test.bats' | sort)
+    if [[ ${#files[@]} -eq 0 ]]; then
+        echo "No *_test.bats files found under {{ dir }}" >&2
+        exit 1
+    fi
+    echo "Running ${#files[@]} test files..."
+    bats --print-output-on-failure "${files[@]}"
 
 # Validate Brewfiles without evaluating them as Ruby (see #288)
 [group('Just')]

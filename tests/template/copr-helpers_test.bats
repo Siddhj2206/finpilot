@@ -1,6 +1,6 @@
 #!/usr/bin/env bats
 # Unit tests for build/copr-helpers.sh (copr_install_isolated).
-# Run with: bats tests/unit/copr-helpers_test.bats
+# Run with: bats tests/template/copr-helpers_test.bats
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 COPR_HELPERS_LIB="${SCRIPT_DIR}/../../build/copr-helpers.sh"

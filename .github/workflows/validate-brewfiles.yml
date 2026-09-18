@@ -7,7 +7,7 @@ on:
     paths:
       - "custom/brew/**"
       - "build/validate-brewfiles.sh"
-      - "tests/unit/validate-brewfiles_test.bats"
+      - "tests/contract/validate-brewfiles_test.bats"
       - ".github/workflows/validate-brewfiles.yml"
 jobs:
   validate:

@@ -11,7 +11,7 @@
 # These tests fail if the hook stops being a caller of the single
 # implementation, or starts evaluating repository Brewfiles again.
 #
-# Run with: bats tests/unit/precommit-brewfile-hook_test.bats
+# Run with: bats tests/template/precommit-brewfile-hook_test.bats
 
 CONFIG="${BATS_TEST_DIRNAME}/../../.pre-commit-config.yaml"
 SCRIPT="${BATS_TEST_DIRNAME}/../../build/validate-brewfiles.sh"

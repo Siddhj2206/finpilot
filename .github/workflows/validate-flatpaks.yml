@@ -7,7 +7,7 @@ on:
     paths:
       - "custom/flatpaks/**"
       - "build/validate-flatpaks.sh"
-      - "tests/unit/validate-flatpaks_test.bats"
+      - "tests/contract/validate-flatpaks_test.bats"
       - ".github/workflows/validate-flatpaks.yml"
 jobs:
   validate:

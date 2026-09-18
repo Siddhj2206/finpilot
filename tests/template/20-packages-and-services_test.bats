@@ -7,7 +7,7 @@
 # each test rewrites a throwaway copy to point at a sandbox context and stubs
 # dnf5, systemctl and rsync.
 #
-# Run with: bats tests/unit/20-packages-and-services_test.bats
+# Run with: bats tests/template/20-packages-and-services_test.bats
 
 SCRIPT_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"

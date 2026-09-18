@@ -7,7 +7,7 @@
 # argv, which lets the tests assert on the argument vector `podman build` would
 # have received without running a container build.
 #
-# Run with: bats tests/unit/justfile-build_test.bats
+# Run with: bats tests/template/justfile-build_test.bats
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 REPO_ROOT="${SCRIPT_DIR}/../.."

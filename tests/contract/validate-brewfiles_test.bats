@@ -7,7 +7,7 @@
 # WITHOUT ever reaching `brew bundle` (the taps file is the only input that
 # gets evaluated, so non-literal tap lines are rejected up front).
 #
-# Run with: bats tests/unit/validate-brewfiles_test.bats
+# Run with: bats tests/contract/validate-brewfiles_test.bats
 
 SCRIPT="${BATS_TEST_DIRNAME}/../../build/validate-brewfiles.sh"
 

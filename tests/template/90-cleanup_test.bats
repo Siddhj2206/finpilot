@@ -5,7 +5,7 @@
 # operation runs against a sandbox directory instead of the host. dnf5,
 # systemctl and mountpoint are stubbed on PATH.
 #
-# Run with: bats tests/unit/90-cleanup_test.bats
+# Run with: bats tests/template/90-cleanup_test.bats
 
 SCRIPT_DIR="$(cd "$(dirname "${BATS_TEST_FILENAME}")" && pwd)"
 CLEANUP_SRC="${SCRIPT_DIR}/../../build/90-cleanup.sh"

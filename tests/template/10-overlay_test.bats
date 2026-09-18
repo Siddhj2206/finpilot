@@ -8,7 +8,7 @@
 # rewrite is asserted below so the suite fails loudly if the paths in the
 # script ever drift.
 #
-# Run with: bats tests/unit/10-overlay_test.bats
+# Run with: bats tests/template/10-overlay_test.bats
 
 SCRIPT_DIR="$(cd "$(dirname "$BATS_TEST_FILENAME")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
