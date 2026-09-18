@@ -130,9 +130,10 @@ sudoif command *args:
 #   $tag          - the image tag (default: $DEFAULT_TAG)
 #
 # The version string is <fedora-major>.<date> for a tag containing "stable" and
-# <tag>-<fedora-major>.<date> otherwise. The Fedora major comes from the
-# Containerfile, a point release is appended when the registry already has that
-# version, and a clean worktree also stamps the short HEAD SHA.
+# <tag>-<fedora-major>.<date> otherwise. The Fedora major comes from the base
+# image's FROM line in the Containerfile, a point release is appended when the
+# registry already has that version, and a clean worktree also stamps the short
+# HEAD SHA.
 #
 # Example: just build finpilot stable-testing
 
@@ -141,11 +142,16 @@ sudoif command *args:
 build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     #!/usr/bin/env bash
 
-    # Read the Fedora major version from Containerfile (single source of truth).
-    # The base image itself is pinned in the Containerfile FROM line.
-    fedora_version=$(grep -E '^ARG FEDORA_MAJOR_VERSION=' Containerfile | head -n1 | sed -E 's/^ARG FEDORA_MAJOR_VERSION="?([^"]+)"?/\1/')
-    if [[ -z "${fedora_version:-}" ]]; then
-        echo "ERROR: Could not extract FEDORA_MAJOR_VERSION from Containerfile"
+    # The base image is the source of truth for the Fedora major and the base
+    # image name: it is the FROM line with no stage alias, because every context
+    # stage is `FROM ... AS name`. Renovate is what moves its tag, so a major
+    # bump needs no second edit.
+    base_from=$(grep -iE '^FROM[[:space:]]' Containerfile | grep -viE '[[:space:]]as[[:space:]]' | head -n1)
+    fedora_version=$(sed -E -e 's|^FROM [^ ]*:([0-9]+)@[^ ]*$|\1|' -e 's|^FROM [^ ]*:([0-9]+)$|\1|' <<<"${base_from}")
+    base_ref=$(sed -E 's|^FROM[[:space:]]+||; s|@.*$||; s|:[^:/]*$||' <<<"${base_from}")
+    base_image_name="${base_ref##*/}"
+    if [[ -z "${base_from}" || "${fedora_version}" == "${base_from}" || -z "${base_image_name}" ]]; then
+        echo "ERROR: Could not read the base image from the Containerfile base FROM line"
         exit 1
     fi
 
@@ -184,10 +190,12 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     fi
 
     # Image identity ARGs - these define how bootc/ublue ecosystem recognizes the image.
-    # Override via env vars: IMAGE_NAME, IMAGE_VENDOR, UBLUE_IMAGE_TAG
+    # Override via env vars: IMAGE_NAME, IMAGE_VENDOR, UBLUE_IMAGE_TAG. The base
+    # image name is not an env var: it is derived from the FROM line above.
     BUILD_ARGS+=("--build-arg" "IMAGE_NAME=${target_image}")
     BUILD_ARGS+=("--build-arg" "IMAGE_VENDOR=${image_vendor}")
     BUILD_ARGS+=("--build-arg" "UBLUE_IMAGE_TAG=${UBLUE_IMAGE_TAG:-${tag}}")
+    BUILD_ARGS+=("--build-arg" "BASE_IMAGE_NAME=${base_image_name}")
 
     # The Containerfile owns the OCI/ArtifactHub metadata, including URLs
     # derived from image identity. Pass only explicit metadata overrides.

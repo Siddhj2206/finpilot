@@ -9,16 +9,16 @@ set -euo pipefail
 # bootc tooling and makes the installed operating system identify itself as
 # this image rather than as its upstream base.
 #
-# The Containerfile is the source of truth for IMAGE_NAME, IMAGE_VENDOR,
-# UBLUE_IMAGE_TAG, BASE_IMAGE_NAME, and FEDORA_MAJOR_VERSION. A normal
-# downstream fork only needs to change its image name and vendor.
+# The Containerfile is the source of truth for IMAGE_NAME, IMAGE_VENDOR and
+# UBLUE_IMAGE_TAG. BASE_IMAGE_NAME and FEDORA_MAJOR_VERSION both describe the
+# base image, whose FROM line is their source of truth. A normal downstream fork
+# only needs to change its image name and vendor.
 ###############################################################################
 
 : "${IMAGE_NAME:?IMAGE_NAME must be set}"
 : "${IMAGE_VENDOR:?IMAGE_VENDOR must be set}"
 : "${UBLUE_IMAGE_TAG:?UBLUE_IMAGE_TAG must be set}"
 : "${BASE_IMAGE_NAME:?BASE_IMAGE_NAME must be set}"
-: "${FEDORA_MAJOR_VERSION:?FEDORA_MAJOR_VERSION must be set}"
 
 VERSION="${VERSION:-${UBLUE_IMAGE_TAG}}"
 HOME_URL="${HOME_URL:-https://github.com/${IMAGE_VENDOR}/${IMAGE_NAME}}"
@@ -31,6 +31,15 @@ BUG_REPORT_URL="${BUG_REPORT_URL:-${SUPPORT_URL}/new}"
 ROOT_DIR="${ROOT_DIR:-}"
 IMAGE_INFO="${ROOT_DIR}/usr/share/ublue-os/image-info.json"
 OS_RELEASE="${ROOT_DIR}/usr/lib/os-release"
+
+# The base image owns the Fedora major; the Containerfile declares no ARG for
+# it. VERSION_ID is never rewritten below, so a repeat run agrees. An explicit
+# FEDORA_MAJOR_VERSION still wins, matching the URL overrides above.
+if [[ -z "${FEDORA_MAJOR_VERSION:-}" && -r "${OS_RELEASE}" ]]; then
+    FEDORA_MAJOR_VERSION="$(sed -n 's/^VERSION_ID="\{0,1\}\([^"]*\)"\{0,1\}$/\1/p' "${OS_RELEASE}")"
+fi
+: "${FEDORA_MAJOR_VERSION:?FEDORA_MAJOR_VERSION must be set or derivable from ${OS_RELEASE}}"
+
 IMAGE_REF="ostree-image-signed:docker://ghcr.io/${IMAGE_VENDOR}/${IMAGE_NAME}"
 
 json_escape() {

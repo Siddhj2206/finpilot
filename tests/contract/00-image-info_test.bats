@@ -166,3 +166,27 @@ json_field() {
     [ "$status" -ne 0 ]
     [ ! -f "${IMAGE_INFO_JSON}" ]
 }
+
+@test "00-image-info: derives the Fedora major from the base os-release" {
+    # The Containerfile declares no FEDORA_MAJOR_VERSION ARG, so in a real build
+    # the base image's os-release is the only source for this field.
+    unset FEDORA_MAJOR_VERSION
+    run_script
+    [ "$status" -eq 0 ]
+    [ "$(json_field fedora-version)" = "44" ]
+}
+
+@test "00-image-info: an explicit Fedora major overrides the base os-release" {
+    export FEDORA_MAJOR_VERSION="99"
+    run_script
+    [ "$status" -eq 0 ]
+    [ "$(json_field fedora-version)" = "99" ]
+}
+
+@test "00-image-info: fails when neither an override nor the base os-release provides the Fedora major" {
+    unset FEDORA_MAJOR_VERSION
+    rm -f "${OS_RELEASE}"
+    run_script
+    [ "$status" -ne 0 ]
+    [ ! -f "${IMAGE_INFO_JSON}" ]
+}

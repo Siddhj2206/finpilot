@@ -26,8 +26,8 @@
 #    - @ublue-os/brew - Homebrew integration
 #
 # 2. Base Image Options (edit the FROM line below):
-#    - `quay.io/fedora-ostree-desktops/silverblue:44` (Fedora 44 and GNOME)
-#    - `quay.io/fedora-ostree-desktops/base-main:44` (Fedora 44, no desktop)
+#    - `quay.io/fedora-ostree-desktops/silverblue` (Fedora, GNOME desktop)
+#    - `quay.io/fedora-ostree-desktops/base-main` (Fedora, no desktop)
 #    - `quay.io/centos-bootc/centos-bootc:stream10` (CentOS-based)
 #
 # See: https://docs.projectbluefin.io/contributing/ for architecture diagram
@@ -57,8 +57,8 @@ FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:31849a8d673039a5fae8565
 ARG IMAGE_NAME="finpilot"
 ARG IMAGE_VENDOR="projectbluefin"
 ARG UBLUE_IMAGE_TAG="stable"
-ARG BASE_IMAGE_NAME="silverblue"
-ARG FEDORA_MAJOR_VERSION="44"
+# Supplied by `just build` from the base image's FROM line.
+ARG BASE_IMAGE_NAME=""
 ARG VERSION=""
 
 ### MODIFICATIONS

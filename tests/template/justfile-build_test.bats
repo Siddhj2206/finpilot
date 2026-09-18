@@ -32,7 +32,7 @@ setup() {
     mkdir -p "${STUB_BIN}" "${TEST_ROOT}/logs" "${SANDBOX}"
 
     cp "${REPO_ROOT}/Justfile" "${SANDBOX}/Justfile"
-    printf 'ARG FEDORA_MAJOR_VERSION="44"\nFROM scratch\n' >"${SANDBOX}/Containerfile"
+    printf 'FROM example.invalid/silverblue:44@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
 
     export PATH="${STUB_BIN}:${PATH}"
     export PODMAN_LOG SKOPEO_LOG
@@ -119,25 +119,32 @@ podman_build_args() {
     [[ "$(podman_build_args)" == *"--build-arg VERSION=44.20260830"* ]]
 }
 
-@test "build: reads the Fedora major version from the Containerfile" {
-    printf 'ARG FEDORA_MAJOR_VERSION="43"\nFROM scratch\n' >"${SANDBOX}/Containerfile"
+@test "build: reads the Fedora major from the base FROM line" {
+    printf 'FROM example.invalid/silverblue:43@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
     run_just build finpilot stable
     [ "$status" -eq 0 ]
     [[ "$(podman_build_args)" == *"--build-arg VERSION=43.20260830"* ]]
 }
 
-@test "build: accepts an unquoted FEDORA_MAJOR_VERSION ARG" {
-    printf 'ARG FEDORA_MAJOR_VERSION=42\nFROM scratch\n' >"${SANDBOX}/Containerfile"
+@test "build: reads the base FROM tag, not a context stage's tag" {
+    printf 'FROM example.invalid/ctx:99@sha256:deadbeef AS ctx\nFROM example.invalid/silverblue:45@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
+    run_just build finpilot stable
+    [ "$status" -eq 0 ]
+    [[ "$(podman_build_args)" == *"--build-arg VERSION=45.20260830"* ]]
+}
+
+@test "build: accepts a base FROM line without a digest" {
+    printf 'FROM example.invalid/silverblue:42\n' >"${SANDBOX}/Containerfile"
     run_just build finpilot stable
     [ "$status" -eq 0 ]
     [[ "$(podman_build_args)" == *"--build-arg VERSION=42.20260830"* ]]
 }
 
-@test "build: aborts when the Containerfile has no FEDORA_MAJOR_VERSION ARG" {
-    printf 'FROM scratch\n' >"${SANDBOX}/Containerfile"
+@test "build: aborts when the base FROM line carries no Fedora major" {
+    printf 'FROM example.invalid/silverblue@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
     run_just build finpilot stable
     [ "$status" -ne 0 ]
-    [[ "$output" == *"Could not extract FEDORA_MAJOR_VERSION"* ]]
+    [[ "$output" == *"Could not read the base image"* ]]
     [ ! -s "${PODMAN_LOG}" ] || ! grep -q '^build ' "${PODMAN_LOG}"
 }
 
@@ -185,6 +192,14 @@ podman_build_args() {
     [[ "${args}" == *"--build-arg IMAGE_NAME=finpilot"* ]]
     [[ "${args}" == *"--build-arg IMAGE_VENDOR=projectbluefin"* ]]
     [[ "${args}" == *"--build-arg UBLUE_IMAGE_TAG=stable"* ]]
+    [[ "${args}" == *"--build-arg BASE_IMAGE_NAME=silverblue"* ]]
+}
+
+@test "build: passes the base image name read from the FROM line" {
+    printf 'FROM example.invalid/other-base:44@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
+    run_just build finpilot stable
+    [ "$status" -eq 0 ]
+    [[ "$(podman_build_args)" == *"--build-arg BASE_IMAGE_NAME=other-base"* ]]
 }
 
 @test "build: falls back to the GitHub repository owner for the vendor" {
