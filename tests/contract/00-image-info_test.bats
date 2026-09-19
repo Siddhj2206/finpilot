@@ -190,3 +190,24 @@ json_field() {
     [ "$status" -ne 0 ]
     [ ! -f "${IMAGE_INFO_JSON}" ]
 }
+
+@test "00-image-info: replaces an existing key whose value contains sed metacharacters" {
+    export HOME_URL="https://finpilot.example/?a=1&b=2|c"
+    run_script
+    [ "$status" -eq 0 ]
+
+    grep -qF 'HOME_URL="https://finpilot.example/?a=1&b=2|c"' "${OS_RELEASE}"
+}
+
+@test "00-image-info: appends an absent key without sed escapes" {
+    # The sed escapes are only for the replacement branch. A key the base
+    # os-release does not carry is appended, and must land verbatim.
+    export HOME_URL="https://finpilot.example/?a=1&b=2|c"
+    sed -i '/^HOME_URL=/d' "${OS_RELEASE}"
+    run_script
+    [ "$status" -eq 0 ]
+
+    grep -qF 'HOME_URL="https://finpilot.example/?a=1&b=2|c"' "${OS_RELEASE}"
+    run grep -c '^HOME_URL=' "${OS_RELEASE}"
+    [ "$output" -eq 1 ]
+}

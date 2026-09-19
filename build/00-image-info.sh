@@ -58,15 +58,16 @@ set_os_release_value() {
     local value=$2
     local escaped_value
 
-    escaped_value=${value//\\/\\\\}
-    escaped_value=${escaped_value//\"/\\\"}
-    escaped_value=${escaped_value//&/\\&}
-    escaped_value=${escaped_value//|/\\|}
-
     if grep -q "^${key}=" "${OS_RELEASE}"; then
+        # These escapes are for the sed replacement only. The append branch
+        # writes the value verbatim, so it must not see them.
+        escaped_value=${value//\\/\\\\}
+        escaped_value=${escaped_value//\"/\\\"}
+        escaped_value=${escaped_value//&/\\&}
+        escaped_value=${escaped_value//|/\\|}
         sed -i "s|^${key}=.*|${key}=\"${escaped_value}\"|" "${OS_RELEASE}"
     else
-        printf '%s="%s"\n' "${key}" "${escaped_value}" >>"${OS_RELEASE}"
+        printf '%s="%s"\n' "${key}" "${value}" >>"${OS_RELEASE}"
     fi
 }
 
