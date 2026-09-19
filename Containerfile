@@ -3,15 +3,14 @@
 ###############################################################################
 # Name: finpilot
 #
-# IMPORTANT: Change "finpilot" above to your desired project name.
-# This name is restated in several files that cannot read each other. The
-# authoritative name at publish time is the repository name: build-image.yml
+# The authoritative name at publish time is the repository name: build-image.yml
 # derives IMAGE_NAME from ${{ github.event.repository.name }} and pushes the
-# GHCR package under it. The value below is the fallback used by local
-# `just build` and by the image-identity metadata written into the image.
+# GHCR package under it. This value is the fallback for local `just build` and
+# the image identity metadata.
 #
-# When forking, update every site listed under "Rename the Project" in
-# README.md. Nothing validates that these agree — see issue #291.
+# Two other files carry the name as a literal: the Justfile's IMAGE_NAME default
+# and artifacthub-repo.yml's repositoryID. tests/contract/identity_test.bats
+# fails when the three disagree. See "Quick start" in README.md.
 ###############################################################################
 
 ###############################################################################
@@ -22,20 +21,21 @@
 #
 # 1. Context Stage (ctx) - Combines resources from:
 #    - Local build scripts and custom files
-#    - @projectbluefin/common - Desktop configuration shared with Aurora
+#    - @projectbluefin/common - The shared desktop configuration and plumbing
 #    - @ublue-os/brew - Homebrew integration
 #
 # 2. Base Image Options (edit the FROM line below):
-#    - `quay.io/fedora-ostree-desktops/silverblue:44` (Fedora 44 and GNOME)
-#    - `quay.io/fedora-ostree-desktops/base-main:44` (Fedora 44, no desktop)
+#    - `quay.io/fedora-ostree-desktops/silverblue` (Fedora, GNOME desktop)
+#    - `quay.io/fedora-ostree-desktops/base-main` (Fedora, no desktop)
 #    - `quay.io/centos-bootc/centos-bootc:stream10` (CentOS-based)
+#    - `quay.io/hummingbird-community/bootc-os` (Hummingbird-based, minimal)
 #
 # See: https://docs.projectbluefin.io/contributing/ for architecture diagram
 ###############################################################################
 
 # OCI context images - imported below and pinned directly in their FROM lines.
 # The base image is pinned in the FROM line below and updated by Renovate.
-FROM ghcr.io/projectbluefin/common:latest@sha256:22681014132bea5229ec011547ef29cec16904f106b66878015009df829d6f74 AS common
+FROM ghcr.io/projectbluefin/common:latest@sha256:b7e3487cafe8b21e10bb514f218406548f4c1abef5e444963094cbf2ec60e4b1 AS common
 FROM ghcr.io/ublue-os/brew:latest@sha256:60ada2d65891d8797beef49d8b43f2108519cbbaf04c9c7363e1a008677fcd35 AS brew
 
 # Context stage - combine local and imported OCI container resources
@@ -50,15 +50,15 @@ COPY --from=brew /system_files /oci/brew
 
 # Base Image - GNOME included (Fedora official OSTree desktop)
 # Renovate will keep the digest pin up to date.
-FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:31849a8d673039a5fae8565f19428ac5b432ee67cba4c2cbe606415486bcd18a
+FROM quay.io/fedora-ostree-desktops/silverblue:44@sha256:fac5b1dd12fb12b882d6fea54c38276fcd4baca24c0a303ddac0f13e03bb5d34
 
 # Image identity - these define how bootc, fastfetch, and the ublue ecosystem
 # recognize your image. Change these to match your project name.
 ARG IMAGE_NAME="finpilot"
 ARG IMAGE_VENDOR="projectbluefin"
 ARG UBLUE_IMAGE_TAG="stable"
-ARG BASE_IMAGE_NAME="silverblue"
-ARG FEDORA_MAJOR_VERSION="44"
+# Supplied by `just build` from the base image's FROM line.
+ARG BASE_IMAGE_NAME=""
 ARG VERSION=""
 
 ### MODIFICATIONS
@@ -68,8 +68,9 @@ ARG VERSION=""
 ##   - Local custom files from /custom
 ##   - Files from @projectbluefin/common at /oci/common (includes branding/artwork content)
 ##   - Files from @ublue-os/brew at /oci/brew
-## Scripts are run in numerical order: image identity, runtime overlays, default
-## packages and services, optional examples, then cleanup.
+## Scripts run in the order of the RUN blocks below: image identity, runtime
+## overlays, default packages and services, then cleanup. An activated example
+## gets its own block between the package phase and the cleanup phase.
 
 RUN --mount=type=bind,from=ctx,source=/,target=/ctx \
     --mount=type=tmpfs,dst=/boot \

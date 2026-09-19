@@ -26,10 +26,10 @@ set -euo pipefail
 # A custom file sharing a name with an inherited one overrides it. That follows
 # the same precedence rule; it is not a collision to guard against.
 #
-# See docs/common-overlay-assessment.md for why common/bluefin/ is imported into
-# the build context but never overlaid: shared/ is reusable runtime
-# infrastructure, while bluefin/ is product opinion, and nvidia/ is a paired
-# hardware feature that must ship with a real driver installation.
+# common/bluefin/ is imported into the build context but never overlaid:
+# shared/ is reusable runtime infrastructure, while bluefin/ is product
+# opinion, and nvidia/ is a paired hardware feature that must ship with a real
+# driver installation.
 ###############################################################################
 
 shopt -s nullglob

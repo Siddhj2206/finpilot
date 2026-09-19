@@ -1,75 +1,55 @@
-# Homebrew Integration
+# Homebrew
 
-This directory contains Brewfile declarations that will be copied into your custom image at `/usr/share/ublue-os/homebrew/`.
+Brewfiles declared here are copied into the image at
+`/usr/share/ublue-os/homebrew/`. Users install them after boot; nothing is
+installed at build time.
 
-## What are Brewfiles?
+## Files
 
-Brewfiles are Homebrew's way of declaring packages in a declarative format. They allow you to specify which packages, taps, and casks you want installed.
-
-## How It Works
-
-1. **During Build**: Files in this directory are copied to `/usr/share/ublue-os/homebrew/` in the image
-2. **After Installation**: Users install packages by running `brew bundle` commands
-3. **User Experience**: Declarative package management via Homebrew
-
-## Usage
-
-### Adding Brewfiles to Your Image
-
-1. Create `.Brewfile` files in this directory
-2. Add your desired packages using Brewfile syntax
-3. Build your image - the Brewfiles will be copied to `/usr/share/ublue-os/homebrew/`
-
-**Example Files in this directory:**
-- [`default.Brewfile`](default.Brewfile) - Essential command-line tools
-- [`development.Brewfile`](development.Brewfile) - Development tools and languages
+- `default.Brewfile` — the essential CLI tools
+- `development.Brewfile` — the development stack
 
 The image also ships `/usr/share/ublue-os/homebrew/fonts.Brewfile`, a curated
-font set from the inherited shared layer, so this directory does not need its
-own.
+font set from Common's shared layer, so this directory does not need its own.
 
-### Installing Packages from Brewfiles
+## Adding one
 
-After booting into your custom image, install packages with:
+Write a `.Brewfile` here, then add a `ujust` recipe for it in
+`custom/ujust/custom-apps.just` so users install it by name instead of
+remembering the path. That directory's README has the recipe shape.
+
+## Format
+
+A Brewfile is a Ruby DSL with three kinds of entry:
+
+```ruby
+tap "homebrew/cask"           # add a third-party repository
+brew "bat"                    # a formula: a CLI tool
+brew "eza"
+cask "font-jetbrains-mono"    # a cask: a macOS-style package
+```
+
+- `tap` comes before anything that needs it.
+- `brew` installs formulae.
+- `cask` installs macOS-style packages. On Linux only some are available —
+  mostly fonts and those that ship a Linux binary.
+
+A repository Brewfile is never evaluated — that would be code execution from a
+pull request. `just validate-brewfiles` checks one literally instead, and the
+pre-commit hook calls the same script.
+
+## Using them
 
 ```bash
 brew bundle --file /usr/share/ublue-os/homebrew/default.Brewfile
 ```
 
-Or use the convenient ujust commands defined in [`custom/ujust/custom-apps.just`](../ujust/custom-apps.just):
+or, on an image built from this template:
+
 ```bash
 ujust install-default-apps
 ujust install-dev-tools
 ```
 
-## File Format
-
-Brewfiles use Ruby syntax:
-
-```ruby
-# Add a tap (third-party repository)
-tap "homebrew/cask"
-
-# Install a formula (CLI tool)
-brew "bat"
-brew "eza"
-brew "ripgrep"
-
-# Install a cask (GUI application, macOS only)
-cask "visual-studio-code"
-```
-
-## Customization
-
-Edit the existing Brewfiles or create new ones:
-- **[`default.Brewfile`](default.Brewfile)** - Modify for your essential tools
-- **[`development.Brewfile`](development.Brewfile)** - Add your dev stack
-- **Create new files** - `gaming.Brewfile`, `media.Brewfile`, etc.
-
-When you add new Brewfiles, create corresponding ujust commands in [`custom/ujust/custom-apps.just`](../ujust/custom-apps.just) for easy installation.
-
-## Resources
-
-- [Homebrew Documentation](https://docs.brew.sh/)
-- [Brewfile Documentation](https://github.com/Homebrew/homebrew-bundle)
-- [Bluefin Homebrew Guide](https://docs.projectbluefin.io/administration#homebrew)
+Homebrew itself is pre-staged at build time and unpacked on first boot by
+`brew-setup.service`.
