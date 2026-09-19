@@ -45,9 +45,10 @@ jobs:
       registry: ghcr.io/${{ github.repository_owner }}
       source_branch: main
       target_branch: stable
-      # A personal image runs no e2e suites. The gate still verifies the
-      # candidate digest's cosign signature, and execute-release.yml
-      # re-verifies the same digest before promoting it.
+      # A personal image runs no e2e suites. The gate job below verifies the
+      # current candidate's cosign signature before a human merges; the tree
+      # guard in execute-release.yml is what binds the promotion to the commit
+      # the PR was built from.
       run_e2e: false
       # The only path that auto-enrolls the PR is a merge queue, which needs an
       # organization-owned repository. Personal-account forks cannot use one.
@@ -71,18 +72,52 @@ jobs:
       request_reviewer: false
     secrets: inherit
 
-  # GitHub holds every check run it creates for a bot-authored pull request in
-  # `action_required` until someone approves it, so the promotion PR's own
-  # validation reports nothing until then. The required `validate` status is
-  # posted by the release gate itself, so this never blocks the merge, but
-  # without the approval the checks effectively never run — and GitHub throttles
-  # scheduled unblocking workflows to hours. Approving them here starts the
-  # checks seconds after the branch is pushed. If one is ever missed, approve it
-  # from the run's page.
-  unblock-promotion-checks:
-    name: Unblock the promotion PR's checks
+  # The reusable declares no workflow-level outputs, so the promotion PR is
+  # found by its deterministic head/base pair: reusable-promote-squash derives
+  # auto/promote-<source>-to-<target> from the branch-model inputs. A no-op run,
+  # where main and stable already match, has no PR at all. Two jobs need the
+  # number — the approver below and the gate — so look it up once.
+  locate-promotion-pr:
+    name: Locate the promotion PR
     needs: [promote]
     if: needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: read
+    outputs:
+      pr_number: ${{ steps.find.outputs.pr_number }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+      PROMOTION_BRANCH: auto/promote-main-to-stable
+    steps:
+      - name: Find the open promotion PR
+        id: find
+        shell: bash
+        run: |
+          set -euo pipefail
+          PR_NUMBER=$(gh pr list \
+            --repo "${{ github.repository }}" \
+            --base stable \
+            --head "${PROMOTION_BRANCH}" \
+            --state open \
+            --json number \
+            --jq '.[0].number // empty')
+          echo "pr_number=${PR_NUMBER}" >> "${GITHUB_OUTPUT}"
+          if [ -z "${PR_NUMBER}" ]; then
+            echo "::notice::No open promotion PR."
+          fi
+
+  # GitHub holds every check run it creates for a bot-authored pull request in
+  # `action_required` until someone approves it, so the promotion PR's own
+  # validation reports nothing until then. Without the approval the checks
+  # effectively never run — and GitHub throttles scheduled unblocking workflows
+  # to hours — so this job approves them seconds after the branch is pushed. If
+  # one is ever missed, approve it from the run's page.
+  unblock-promotion-checks:
+    name: Unblock the promotion PR's checks
+    needs: [locate-promotion-pr]
+    if: needs.locate-promotion-pr.outputs.pr_number != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -96,22 +131,6 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-
-          # The reusable declares no workflow-level outputs, so find the PR by
-          # its deterministic head/base pair: reusable-promote-squash derives
-          # auto/promote-<source>-to-<target> from the branch-model inputs. A
-          # no-op run, where main and stable already match, has no PR at all.
-          PR_NUMBER=$(gh pr list \
-            --repo "${{ github.repository }}" \
-            --base stable \
-            --head "${PROMOTION_BRANCH}" \
-            --state open \
-            --json number \
-            --jq '.[0].number // empty')
-          if [ -z "${PR_NUMBER}" ]; then
-            echo "::notice::No open promotion PR; nothing to unblock."
-            exit 0
-          fi
 
           # The same trust boundary the scheduled approver documents: only runs
           # on the bot-owned promotion branch, from the bot itself. Those
@@ -147,3 +166,34 @@ jobs:
           if [ "${approved}" -eq 0 ]; then
             echo "::notice::No pending runs matched; the scheduled approver remains the backstop."
           fi
+
+  # The reusable's own release gate sits behind `enqueue_promotion`, which is off
+  # because a personal repository cannot enroll a promotion for merge. That input
+  # is a master switch for both the gate and the enrollment job, so turning
+  # enrollment off turned the gate off too. Run the same gate here, so the
+  # promotion PR is still verified and labelled before a human merges it.
+  gate:
+    name: Release gate checks
+    needs: [locate-promotion-pr]
+    if: needs.locate-promotion-pr.outputs.pr_number != ''
+    permissions:
+      actions: read
+      contents: read
+      issues: write
+      packages: read
+      pull-requests: write
+    uses: projectbluefin/actions/.github/workflows/reusable-release-gate.yml@ce1d0c6bb5baf8bab3a5b226e693c9fd26b3c4a8 # v1
+    with:
+      repo: ${{ github.repository }}
+      pr_number: ${{ needs.locate-promotion-pr.outputs.pr_number }}
+      registry: ghcr.io/${{ github.repository_owner }}
+      variants: >-
+        [{"image":"${{ github.event.repository.name }}"}]
+      cosign_identity_regexp: >-
+        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+      target_tag: testing
+      # head_sha and the e2e_* inputs are deliberately omitted: they feed only
+      # the commit-bound E2E check, which run_e2e: false disables. Add them if
+      # e2e is ever enabled for this image.
+      run_e2e: false
+    secrets: inherit

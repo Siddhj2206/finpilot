@@ -13,7 +13,7 @@ description: >-
 |---|---|---|
 | `build-image.yml` | push to `main` or `stable`, dispatch | Builds, signs, and pushes the image. |
 | `execute-release.yml` | push to `stable` | Promotes the candidate digest. Does not rebuild. |
-| `promote-main-to-stable.yml` | daily schedule, dispatch | Opens the squash promotion PR. |
+| `promote-main-to-stable.yml` | daily schedule, dispatch | Opens the squash promotion PR and runs the release gate on it. |
 | `sync-stable-to-main.yml` | push to `stable` | Merges `stable` hotfixes back into `main`. |
 | `pr-validation.yml` | pull request | The `validate` check: shellcheck and hadolint. |
 | `validate-brewfiles.yml` | pull request | Brewfiles, without evaluating them. |
@@ -29,9 +29,19 @@ Most are thin callers of reusable workflows in `projectbluefin/actions`.
 ## The release model
 
 `main` publishes `:stable-testing`. `stable` never rebuilds: promotion is a
-squash PR from `main` to `stable`, and `execute-release.yml` copies the exact
-digest `main` already built. The README owns the release table and the promotion
+squash PR from `main` to `stable`, and `execute-release.yml` copies the digest
+`:testing` resolves to. The README owns the release table and the promotion
 gate's current limits.
+
+The factory reusable puts its release gate and its auto-merge enrollment behind
+one input, `enqueue_promotion`. A personal repository cannot enroll — there is no
+merge queue, and `gh pr merge --auto` refuses without a merge method — so
+enrollment is off, and `promote-main-to-stable.yml` runs the gate itself in its
+own `gate` job to keep the pre-merge check. That gate resolves `:testing` when it
+runs, so it attests the current candidate. The binding comes from
+`execute-release.yml` passing `source_branch: main`, which makes the reusable
+refuse to promote at all once `main` has moved past the promotion commit; a
+manual dispatch is exempt, because that path is deliberate recovery.
 
 ## Signing
 

@@ -80,10 +80,15 @@ jobs:
       cosign_identity_regexp: >-
         ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
       fast_forward_sha: ${{ github.sha }}
-      # Personal image, so no e2e suites run: this step re-verifies the
-      # candidate digest's cosign signature and copies that exact digest to
-      # :stable. promote-main-to-stable.yml already gated the same digest
-      # before the merge.
+      # The reusable refuses to resolve the mutable :testing tag unless main's
+      # tree still matches the promoted commit, so a promotion that has fallen
+      # behind main fails instead of publishing a newer candidate than the one
+      # the promotion PR was reviewed against. A manual dispatch is deliberate
+      # recovery — a maintainer inspected the candidate — so it is exempt.
+      source_branch: ${{ github.event_name == 'push' && 'main' || '' }}
+      # Personal image, so no e2e suites run. The reusable re-verifies the
+      # resolved candidate's cosign signature and copies that digest to :stable
+      # without rebuilding.
       run_release_gate: false
     secrets: inherit
 

@@ -101,7 +101,8 @@ those a given package belongs in.
 
 Merging to `main` publishes `:stable-testing`; the promotion PR that follows
 publishes `:stable` when merged. Promotion verifies the cosign signature on the
-testing image before it reports ready.
+testing image before it reports ready, and refuses to promote at all once `main`
+has moved past the commit the promotion PR was built from.
 
 > **Known gap:** the promotion gate checks the digest and the signature only. It
 > runs no end-to-end tests, so `release/ready` means "signed and unmodified",
