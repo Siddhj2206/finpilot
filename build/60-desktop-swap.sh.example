@@ -15,8 +15,9 @@ set -euo pipefail
 #
 #   FROM quay.io/fedora-ostree-desktops/cosmic-atomic:44
 #
-# with BASE_IMAGE_NAME="cosmic-atomic" in the image identity block. Use this
-# script only when you want to keep the Silverblue base and strip GNOME from it.
+# The FROM line is all it takes: the base image name and the Fedora major are
+# read from it. Use this script only when you want to keep the Silverblue base
+# and strip GNOME from it.
 #
 # Do not install the @cosmic-desktop-environment group. It is a full desktop
 # spin: LibreOffice, Firefox, printing and input methods, and it re-reasons

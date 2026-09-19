@@ -42,7 +42,7 @@ jobs:
           # "ci(promote): <image> <source> → <target> <date>", is accepted too:
           # it becomes the subject if the branch ever carries more than one
           # commit or the setting changes to PR_TITLE. A merge commit produces
-          # neither, which is the shape #16 had.
+          # neither.
           if [[ "${COMMIT_MESSAGE}" =~ ^(ci[(]promote[)]:|chore:[[:space:]]+promote[[:space:]]) ]]; then
             echo "is-promotion=true" >> "${GITHUB_OUTPUT}"
           else
@@ -72,7 +72,7 @@ jobs:
       issues: write
       packages: write
       pull-requests: write
-    uses: projectbluefin/actions/.github/workflows/reusable-execute-release.yml@b0fbcf6ca95dace8e3b4ae1860ccbbc3bbab1a53 # v1
+    uses: projectbluefin/actions/.github/workflows/reusable-execute-release.yml@ce1d0c6bb5baf8bab3a5b226e693c9fd26b3c4a8 # v1
     with:
       registry: ghcr.io/${{ github.repository_owner }}
       variants: >-
@@ -80,10 +80,15 @@ jobs:
       cosign_identity_regexp: >-
         ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
       fast_forward_sha: ${{ github.sha }}
-      # Personal image, so no e2e suites run: this step re-verifies the
-      # candidate digest's cosign signature and copies that exact digest to
-      # :stable. promote-main-to-stable.yml already gated the same digest
-      # before the merge.
+      # The reusable refuses to resolve the mutable :testing tag unless main's
+      # tree still matches the promoted commit, so a promotion that has fallen
+      # behind main fails instead of publishing a newer candidate than the one
+      # the promotion PR was reviewed against. A manual dispatch is deliberate
+      # recovery — a maintainer inspected the candidate — so it is exempt.
+      source_branch: ${{ github.event_name == 'push' && 'main' || '' }}
+      # Personal image, so no e2e suites run. The reusable re-verifies the
+      # resolved candidate's cosign signature and copies that digest to :stable
+      # without rebuilding.
       run_release_gate: false
     secrets: inherit
 
@@ -98,7 +103,7 @@ jobs:
       packages: read
     # Finpilot's direct build does not upload an SBOM artifact. The supported
     # reusable inline mode scans the already-promoted stable image instead.
-    uses: projectbluefin/actions/.github/workflows/reusable-release.yml@b0fbcf6ca95dace8e3b4ae1860ccbbc3bbab1a53 # v1
+    uses: projectbluefin/actions/.github/workflows/reusable-release.yml@ce1d0c6bb5baf8bab3a5b226e693c9fd26b3c4a8 # v1
     with:
       stream_name: stable
       image: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
