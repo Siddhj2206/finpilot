@@ -143,6 +143,18 @@ teardown() {
 	! grep -q 'not a just file' "${JUST_DIR}/60-custom.just"
 }
 
+@test "10-overlay: consolidates just recipes from subdirectories" {
+	# A fork may group recipes by topic. The merge walks the tree, so a nested
+	# recipe must not be dropped silently.
+	mkdir -p "${CTX}/custom/ujust/nested"
+	printf 'nested-marker:\n\techo nested\n' >"${CTX}/custom/ujust/nested/deep.just"
+
+	run bash "${SCRIPT}"
+	[ "$status" -eq 0 ]
+
+	grep -q 'nested-marker:' "${JUST_DIR}/60-custom.just"
+}
+
 @test "10-overlay: consolidates just recipes in sorted, deterministic order" {
 	printf 'zzz-marker:\n\techo z\n' >"${CTX}/custom/ujust/zzz-last.just"
 	printf 'aaa-marker:\n\techo a\n' >"${CTX}/custom/ujust/aaa-first.just"

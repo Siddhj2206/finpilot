@@ -22,7 +22,8 @@ set -euo pipefail
 #   4. custom/config     per-user defaults, seeded into /etc/skel/.config
 #
 # The declaration seams write into directories the overlays above created:
-# custom/brew/*.Brewfile, custom/ujust/*.just, and custom/flatpaks/*.preinstall.
+# custom/brew/*.Brewfile, custom/ujust/ (any depth), and
+# custom/flatpaks/*.preinstall.
 # A custom file sharing a name with an inherited one overrides it. That follows
 # the same precedence rule; it is not a collision to guard against.
 #
@@ -77,16 +78,16 @@ mkdir -p /usr/share/ublue-os/homebrew/
 cp /ctx/custom/brew/*.Brewfile /usr/share/ublue-os/homebrew/
 
 # Merge custom ujust recipes into the file the shared ujust entry point imports.
-# Sort the inputs and write one blank line between them so the merged result is
-# deterministic and idempotent.
+# Walk the tree so a fork can organise recipes into subdirectories, and sort the
+# inputs so the merged result is deterministic and idempotent.
 mkdir -p /usr/share/ublue-os/just/
 : >/usr/share/ublue-os/just/60-custom.just
-recipes=(/ctx/custom/ujust/*.just)
-if ((${#recipes[@]})); then
-	while IFS= read -r recipe; do
+if [[ -d /ctx/custom/ujust ]]; then
+	mapfile -t recipes < <(find /ctx/custom/ujust -type f -iname '*.just' | LC_ALL=C sort)
+	for recipe in "${recipes[@]}"; do
 		cat "${recipe}" >>/usr/share/ublue-os/just/60-custom.just
 		printf '\n' >>/usr/share/ublue-os/just/60-custom.just
-	done < <(printf '%s\n' "${recipes[@]}" | LC_ALL=C sort)
+	done
 fi
 
 # Flatpak preinstall declarations, consumed at first boot.

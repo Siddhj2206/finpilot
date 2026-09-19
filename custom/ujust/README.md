@@ -1,8 +1,9 @@
 # ujust
 
 Recipes here become the image's `ujust` commands. Every `.just` file in this
-directory is concatenated into `/usr/share/ublue-os/just/60-custom.just` at build
-time, and the base `ublue-os-just` package imports that file.
+directory tree is concatenated into `/usr/share/ublue-os/just/60-custom.just` at
+build time, and the base `ublue-os-just` package imports that file. The search is
+recursive, so recipes can be grouped into subdirectories by topic.
 
 ## Files
 
