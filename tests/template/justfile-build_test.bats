@@ -119,7 +119,7 @@ podman_build_args() {
     [[ "$(podman_build_args)" == *"--build-arg VERSION=44.20260830"* ]]
 }
 
-@test "build: reads the Fedora major from the base FROM line" {
+@test "build: reads the base tag from the base FROM line" {
     printf 'FROM example.invalid/silverblue:43@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
     run_just build finpilot stable
     [ "$status" -eq 0 ]
@@ -140,7 +140,17 @@ podman_build_args() {
     [[ "$(podman_build_args)" == *"--build-arg VERSION=42.20260830"* ]]
 }
 
-@test "build: aborts when the base FROM line carries no Fedora major" {
+@test "build: accepts a non-numeric base tag verbatim" {
+    # CentOS and Hummingbird bases tag with something other than a Fedora
+    # major, so the tag is used as-is in the version string.
+    printf 'FROM example.invalid/centos-bootc:stream10@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
+    run_just build finpilot stable
+    [ "$status" -eq 0 ]
+    [[ "$(podman_build_args)" == *"--build-arg VERSION=stream10.20260830"* ]]
+    [[ "$(podman_build_args)" == *"--build-arg BASE_IMAGE_NAME=centos-bootc"* ]]
+}
+
+@test "build: aborts when the base FROM line carries no tag" {
     printf 'FROM example.invalid/silverblue@sha256:deadbeef\n' >"${SANDBOX}/Containerfile"
     run_just build finpilot stable
     [ "$status" -ne 0 ]

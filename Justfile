@@ -129,8 +129,8 @@ sudoif command *args:
 #   $target_image - the image to build (default: $IMAGE_NAME)
 #   $tag          - the image tag (default: $DEFAULT_TAG)
 #
-# The version string is <fedora-major>.<date> for a tag containing "stable" and
-# <tag>-<fedora-major>.<date> otherwise. The Fedora major comes from the base
+# The version string is <base-tag>.<date> for a tag containing "stable" and
+# <image-tag>-<base-tag>.<date> otherwise. The base tag comes from the base
 # image's FROM line in the Containerfile, a point release is appended when the
 # registry already has that version, and a clean worktree also stamps the short
 # HEAD SHA.
@@ -142,15 +142,16 @@ sudoif command *args:
 build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     #!/usr/bin/env bash
 
-    # The base image is the source of truth for the Fedora major and the base
-    # image name: it is the FROM line with no stage alias, because every context
-    # stage is `FROM ... AS name`. Renovate is what moves its tag, so a major
-    # bump needs no second edit.
+    # The base image is the source of truth for the base tag and the base image
+    # name: it is the FROM line with no stage alias, because every context stage
+    # is `FROM ... AS name`. Renovate is what moves its tag, so a bump needs no
+    # second edit. The tag is taken verbatim, so Fedora's numeric major and
+    # CentOS's `stream10` both work.
     base_from=$(grep -iE '^FROM[[:space:]]' Containerfile | grep -viE '[[:space:]]as[[:space:]]' | head -n1)
-    fedora_version=$(sed -E -e 's|^FROM [^ ]*:([0-9]+)@[^ ]*$|\1|' -e 's|^FROM [^ ]*:([0-9]+)$|\1|' <<<"${base_from}")
+    base_tag=$(sed -E 's|^FROM[[:space:]]+[^@:[:space:]]*:([^@[:space:]]+)(@.*)?$|\1|' <<<"${base_from}")
     base_ref=$(sed -E 's|^FROM[[:space:]]+||; s|@.*$||; s|:[^:/]*$||' <<<"${base_from}")
     base_image_name="${base_ref##*/}"
-    if [[ -z "${base_from}" || "${fedora_version}" == "${base_from}" || -z "${base_image_name}" ]]; then
+    if [[ -z "${base_from}" || "${base_tag}" == "${base_from}" || -z "${base_image_name}" ]]; then
         echo "ERROR: Could not read the base image from the Containerfile base FROM line"
         exit 1
     fi
@@ -159,12 +160,12 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     # fall back to the repository owner GitHub Actions supplies.
     image_vendor="${IMAGE_VENDOR:-${REPO_ORG}}"
 
-    # Bluefin-style version string: <fedora-version>.<date> for stable,
-    # <tag>-<fedora-version>.<date> for everything else.
+    # Bluefin-style version string: <base-tag>.<date> for stable,
+    # <image-tag>-<base-tag>.<date> for everything else.
     if [[ "${tag}" =~ stable ]]; then
-        ver="${fedora_version}.$(date +%Y%m%d)"
+        ver="${base_tag}.$(date +%Y%m%d)"
     else
-        ver="${tag}-${fedora_version}.$(date +%Y%m%d)"
+        ver="${tag}-${base_tag}.$(date +%Y%m%d)"
     fi
 
     # Avoid tag collisions when rebuilding on the same day
