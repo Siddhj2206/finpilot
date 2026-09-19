@@ -59,6 +59,13 @@ majors wait for a pull request.
 Renovate needs the `RENOVATE_TOKEN` secret and auto-merge enabled. Both are
 onboarding steps.
 
+Automerge deliberately covers GitHub Actions SHA bumps, which reverses a guard
+upstream kept. Those SHAs run in jobs holding `packages: write`,
+`id-token: write`, and `secrets: inherit`, and PR builds are disabled, so a bump
+merges with only shellcheck, hadolint, and the test suite having run. Putting the
+guard back is one rule — `matchManagers: ["github-actions"]` with
+`automerge: false`.
+
 ## Making a change
 
 1. Open a pull request against `main`.
