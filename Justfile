@@ -160,6 +160,13 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     # fall back to the repository owner GitHub Actions supplies.
     image_vendor="${IMAGE_VENDOR:-${REPO_ORG}}"
 
+    # target_image names the local image, and the VM recipes pass it with a
+    # `localhost/` prefix. The identity must not carry that prefix: image-info
+    # composes image-ref from IMAGE_NAME, and the ISO path hands that ref to
+    # Bootc Image Builder as the install target, so the prefix would become a
+    # registry path that cannot exist.
+    image_name="${target_image#localhost/}"
+
     # Bluefin-style version string: <base-tag>.<date> for stable,
     # <image-tag>-<base-tag>.<date> for everything else.
     if [[ "${tag}" =~ stable ]]; then
@@ -172,7 +179,7 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     if command -v skopeo &>/dev/null; then
         repotags=$(mktemp -t repotags.XXXXXXXX.json) || { echo "ERROR: mktemp failed to create tag-list temp file"; exit 1; }
         trap 'rm -f "${repotags}"' EXIT
-        skopeo list-tags "docker://ghcr.io/${image_vendor}/${target_image}" >"${repotags}" 2>/dev/null \
+        skopeo list-tags "docker://ghcr.io/${image_vendor}/${image_name}" >"${repotags}" 2>/dev/null \
             || echo '{"Tags":[]}' >"${repotags}"
         if [[ $(jq "any(.Tags[]; contains(\"${ver}\"))" "${repotags}") == "true" ]]; then
             POINT=1
@@ -193,7 +200,7 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     # Image identity ARGs - these define how bootc/ublue ecosystem recognizes the image.
     # Override via env vars: IMAGE_NAME, IMAGE_VENDOR, UBLUE_IMAGE_TAG. The base
     # image name is not an env var: it is derived from the FROM line above.
-    BUILD_ARGS+=("--build-arg" "IMAGE_NAME=${target_image}")
+    BUILD_ARGS+=("--build-arg" "IMAGE_NAME=${image_name}")
     BUILD_ARGS+=("--build-arg" "IMAGE_VENDOR=${image_vendor}")
     BUILD_ARGS+=("--build-arg" "UBLUE_IMAGE_TAG=${UBLUE_IMAGE_TAG:-${tag}}")
     BUILD_ARGS+=("--build-arg" "BASE_IMAGE_NAME=${base_image_name}")
@@ -217,7 +224,7 @@ build $target_image=IMAGE_NAME $tag=DEFAULT_TAG:
     # CI sets REGISTRY_CACHE_WRITE=1 for candidate builds; local builds stay
     # read-only so a developer never poisons the shared cache
     CACHE_ARGS=()
-    cache_ref="ghcr.io/${image_vendor}/${target_image}"
+    cache_ref="ghcr.io/${image_vendor}/${image_name}"
     if skopeo list-tags "docker://${cache_ref}" >/dev/null 2>&1; then
         CACHE_ARGS+=("--cache-from" "${cache_ref}")
         if [[ "${REGISTRY_CACHE_WRITE:-0}" == "1" ]]; then

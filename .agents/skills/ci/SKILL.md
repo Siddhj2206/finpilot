@@ -43,6 +43,15 @@ runs, so it attests the current candidate. The binding comes from
 refuse to promote at all once `main` has moved past the promotion commit; a
 manual dispatch is exempt, because that path is deliberate recovery.
 
+The same reusable builds the squash branch, and it stages deletions with
+`git diff --diff-filter=D`. Git reports a moved file as a rename, so a path `main`
+moved survives on its old path and the branch's tree stops matching `main`'s —
+the state the guard above refuses, but only after the PR is merged.
+`repair-promotion-branch` in `promote-main-to-stable.yml` rebuilds the branch from
+`main`'s tree when it has drifted, and the `validate` check fails a promotion PR
+whose tree does not match `main`. The sweep belongs to `projectbluefin/actions`;
+the one-line fix there is `--no-renames`.
+
 ## Signing
 
 Keyless OIDC via Cosign. There are no keys to generate or store; the workflow
@@ -58,6 +67,13 @@ majors wait for a pull request.
 
 Renovate needs the `RENOVATE_TOKEN` secret and auto-merge enabled. Both are
 onboarding steps.
+
+Automerge deliberately covers GitHub Actions SHA bumps, which reverses a guard
+upstream kept. Those SHAs run in jobs holding `packages: write`,
+`id-token: write`, and `secrets: inherit`, and PR builds are disabled, so a bump
+merges with only shellcheck, hadolint, and the test suite having run. Putting the
+guard back is one rule — `matchManagers: ["github-actions"]` with
+`automerge: false`.
 
 ## Making a change
 

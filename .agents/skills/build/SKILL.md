@@ -55,6 +55,11 @@ Two readers derive it from that base: `just build` parses the tag for the versio
 string, and `00-image-info.sh` reads the base's `os-release` for the image
 metadata.
 
+`BASE_IMAGE_NAME` has no default in the Containerfile on purpose: a stale default
+like `silverblue` would silently mislabel a CentOS or Hummingbird fork. `just
+build` fills it from the `FROM` line and `00-image-info.sh` hard-fails on an empty
+value, so build through `just`; a bare `podman build .` is unsupported.
+
 ## Examples
 
 `build/*.sh.example` are inactive until you activate them: rename the file off
