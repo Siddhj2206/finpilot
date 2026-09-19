@@ -72,6 +72,57 @@ jobs:
       request_reviewer: false
     secrets: inherit
 
+  # The reusable rebuilds the promotion branch by overlaying main's tree on
+  # stable, then staging the paths git reports as deletions. Git reports a moved
+  # file as a rename, so every path main moved survives on its old path and the
+  # branch's tree stops matching main's — which execute-release.yml's tree guard
+  # then refuses after the merge. Repair it here, before a human merges the PR: a
+  # commit carrying main's tree on top of stable, the shape the reusable intends.
+  # Skipped when the tree already matches, so a correct branch never loses its
+  # approvals to a no-op force-push.
+  repair-promotion-branch:
+    name: Make the promotion branch match main
+    needs: [promote]
+    if: needs.promote.result == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      PROMOTION_BRANCH: auto/promote-main-to-stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Rebuild the branch when its tree has drifted from main
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch origin "${PROMOTION_BRANCH}" main stable
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Repair the branch the reusable built. A missing branch means there
+          # was nothing to promote, so there is nothing to repair.
+          if ! git rev-parse --verify --quiet "origin/${PROMOTION_BRANCH}" >/dev/null; then
+            echo "::notice::No ${PROMOTION_BRANCH} to repair."
+            exit 0
+          fi
+
+          head_tree=$(git rev-parse "origin/${PROMOTION_BRANCH}^{tree}")
+          main_tree=$(git rev-parse "origin/main^{tree}")
+          if [ "${head_tree}" = "${main_tree}" ]; then
+            echo "::notice::${PROMOTION_BRANCH} already matches main."
+            exit 0
+          fi
+
+          commit=$(git commit-tree "${main_tree}" -p origin/stable -m "chore: promote main to stable")
+          git push --force origin "${commit}:refs/heads/${PROMOTION_BRANCH}"
+          echo "Rebuilt ${PROMOTION_BRANCH} from main's tree."
+
   # The reusable declares no workflow-level outputs, so the promotion PR is
   # found by its deterministic head/base pair: reusable-promote-squash derives
   # auto/promote-<source>-to-<target> from the branch-model inputs. A no-op run,
@@ -79,8 +130,8 @@ jobs:
   # number — the approver below and the gate — so look it up once.
   locate-promotion-pr:
     name: Locate the promotion PR
-    needs: [promote]
-    if: needs.promote.result == 'success'
+    needs: [promote, repair-promotion-branch]
+    if: needs.promote.result == 'success' && needs.repair-promotion-branch.result == 'success'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
