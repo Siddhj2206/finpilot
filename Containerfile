@@ -28,6 +28,7 @@
 #    - `quay.io/fedora-ostree-desktops/silverblue` (Fedora, GNOME desktop)
 #    - `quay.io/fedora-ostree-desktops/base-main` (Fedora, no desktop)
 #    - `quay.io/centos-bootc/centos-bootc:stream10` (CentOS-based)
+#    - `quay.io/hummingbird-community/bootc-os` (Hummingbird-based, minimal)
 #
 # See: https://docs.projectbluefin.io/contributing/ for architecture diagram
 ###############################################################################
