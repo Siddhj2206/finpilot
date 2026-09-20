@@ -345,7 +345,10 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
     mkdir -p output
     sudo mv -f "${BUILDTMP}"/* output/
     sudo rmdir "${BUILDTMP}"
-    sudo chown -R "$USER:$USER" output/
+    # `id` rather than `$USER`: these recipes run under `set -u` from cron,
+    # containers and systemd, where the kernel never exported USER, and aborting
+    # here would throw away a completed build.
+    sudo chown -R "$(id -u):$(id -g)" output/
 
 # Rebuild the container image first, then convert it (see _build-bib).
 _rebuild-bib $target_image $tag $type $config: (build target_image tag) && (_build-bib target_image tag type config)

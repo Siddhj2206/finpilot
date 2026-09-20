@@ -402,3 +402,13 @@ podman_build_args() {
     [ -n "${arg}" ]
     [ "${arg}" -gt "${marker}" ]
 }
+
+@test "Justfile: the output chown does not read USER" {
+    # The BIB recipes run under `set -u` from cron, containers and systemd, where
+    # the kernel never exported USER. Reading it aborts the recipe after a 15-25
+    # minute build, so ownership comes from id instead.
+    line=$(grep -F 'chown -R' "${REPO_ROOT}/Justfile")
+    [ -n "${line}" ]
+    [[ "${line}" == *'$(id -u):$(id -g)'* ]]
+    [[ "${line}" != *'$USER'* ]]
+}
