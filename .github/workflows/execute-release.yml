@@ -78,7 +78,7 @@ jobs:
       variants: >-
         [{"image":"${{ github.event.repository.name }}","source_tag":"testing","target_tag":"stable"}]
       cosign_identity_regexp: >-
-        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+        ^https://github\.com/${{ github.repository }}/\.github/workflows/
       fast_forward_sha: ${{ github.sha }}
       # The reusable refuses to resolve the mutable :testing tag unless main's
       # tree still matches the promoted commit, so a promotion that has fallen
@@ -112,6 +112,6 @@ jobs:
       project_name: ${{ github.event.repository.name }}
       badge_label: Stable
       cert_identity_regexp: >-
-        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+        ^https://github\.com/${{ github.repository }}/\.github/workflows/
       docs_url: ${{ github.server_url }}/${{ github.repository }}/releases
     secrets: inherit
