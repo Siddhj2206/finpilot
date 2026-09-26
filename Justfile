@@ -2,7 +2,7 @@ export IMAGE_NAME := env("IMAGE_NAME", "finpilot")
 export DEFAULT_TAG := env("DEFAULT_TAG", "stable")
 export PODMAN := env("PODMAN", "podman")
 export REPO_ORG := env("GITHUB_REPOSITORY_OWNER", "projectbluefin")
-export bib_image := env("BIB_IMAGE", "ghcr.io/osbuild/bootc-image-builder:latest@sha256:db3cf1c3682d3f2653e5252c33b9173ef9a5b220e959ccd1eb174ef44499b4d9")
+export bib_image := env("BIB_IMAGE", "ghcr.io/osbuild/bootc-image-builder:latest@sha256:d85c3ddad270268c5ab9d11a79c535c71f4da312ee4184c0c862dab744d9d3e1")
 export qemu_image := env("QEMU_IMAGE", "ghcr.io/qemus/qemu:7.50@sha256:e7f6fda52503a546fd649670ba46e4bc23dc6dcef275bc3fac48877fbbc430df")
 export vm_ram := env("VM_RAM", "8192")
 export vm_cpus := env("VM_CPUS", "4")
@@ -345,7 +345,10 @@ _build-bib $target_image $tag $type $config: (_rootful_load_image target_image t
     mkdir -p output
     sudo mv -f "${BUILDTMP}"/* output/
     sudo rmdir "${BUILDTMP}"
-    sudo chown -R "$USER:$USER" output/
+    # `id` rather than `$USER`: these recipes run under `set -u` from cron,
+    # containers and systemd, where the kernel never exported USER, and aborting
+    # here would throw away a completed build.
+    sudo chown -R "$(id -u):$(id -g)" output/
 
 # Rebuild the container image first, then convert it (see _build-bib).
 _rebuild-bib $target_image $tag $type $config: (build target_image tag) && (_build-bib target_image tag type config)

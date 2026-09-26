@@ -58,6 +58,11 @@ Keyless OIDC via Cosign. There are no keys to generate or store; the workflow
 needs `id-token: write` and `packages: write`. Unsigned images fail the promotion
 gate. The README has the command to verify an image.
 
+The identity regexp the release workflows pass to the reusables is scoped with
+`github.repository`, not `github.repository_owner`. Matching the owner and then
+any repository accepts a signature minted by any repository in the org, and
+`github.repository` keeps the scope correct in a fork without hardcoding it.
+
 ## Renovate
 
 Self-hosted through `projectbluefin/actions`, running every six hours. It pins
