@@ -36,12 +36,12 @@ concurrency:
 jobs:
   promote:
     name: Promote main to stable
-    uses: projectbluefin/actions/.github/workflows/reusable-promote-squash.yml@ce1d0c6bb5baf8bab3a5b226e693c9fd26b3c4a8 # v1
+    uses: projectbluefin/actions/.github/workflows/reusable-promote-squash.yml@4fb323625b017f6731a9a54c29ec08314f4e9e66 # v1
     with:
       variants: >-
         [{"image":"${{ github.event.repository.name }}"}]
       cosign_identity_regexp: >-
-        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+        ^https://github\.com/${{ github.repository }}/\.github/workflows/
       registry: ghcr.io/${{ github.repository_owner }}
       source_branch: main
       target_branch: stable
@@ -233,7 +233,7 @@ jobs:
       issues: write
       packages: read
       pull-requests: write
-    uses: projectbluefin/actions/.github/workflows/reusable-release-gate.yml@ce1d0c6bb5baf8bab3a5b226e693c9fd26b3c4a8 # v1
+    uses: projectbluefin/actions/.github/workflows/reusable-release-gate.yml@4fb323625b017f6731a9a54c29ec08314f4e9e66 # v1
     with:
       repo: ${{ github.repository }}
       pr_number: ${{ needs.locate-promotion-pr.outputs.pr_number }}
@@ -241,7 +241,7 @@ jobs:
       variants: >-
         [{"image":"${{ github.event.repository.name }}"}]
       cosign_identity_regexp: >-
-        ^https://github\.com/${{ github.repository_owner }}/[^/]+/\.github/workflows/
+        ^https://github\.com/${{ github.repository }}/\.github/workflows/
       target_tag: testing
       # head_sha and the e2e_* inputs are deliberately omitted: they feed only
       # the commit-bound E2E check, which run_e2e: false disables. Add them if
