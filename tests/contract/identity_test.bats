@@ -49,3 +49,13 @@ assert_same_name() {
     actual="$(sed -n 's/^repositoryID: \([^ ]*\).*$/\1/p' "${REPO_ROOT}/artifacthub-repo.yml")"
     assert_same_name "artifacthub-repo.yml repositoryID" "${actual}"
 }
+
+@test "identity: clean.yml derives its package name instead of hardcoding it" {
+    run grep -F 'github.event.repository.name' "${REPO_ROOT}/.github/workflows/clean.yml"
+    [ "$status" -eq 0 ]
+}
+
+@test "identity: clean.yml does not restate the canonical image name" {
+    run grep -F "$(image_name)" "${REPO_ROOT}/.github/workflows/clean.yml"
+    [ "$status" -ne 0 ]
+}
